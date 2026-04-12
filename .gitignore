@@ -1,0 +1,60 @@
+data
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories (if not using Go modules properly)
+vendor/
+
+# IDE/editor folders
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+
+# Build directories
+bin/
+build/
+dist/
+
+# Coverage reports
+coverage.out
+coverage.html
+
+# Temporary files
+tmp/
+*.tmp
+
+# Generated files (optional — adjust if you commit generated code)
+*.gen.go
+
+# Debugging
+debug
+
+# Go build cache (usually unnecessary but safe)
+*.cache
+
+# Local config overrides
+config.local.*
