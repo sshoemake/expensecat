@@ -488,3 +488,61 @@ func (s *jsonStore) UpdateExpense(id string, expense Expense) error {
 	log.Printf("Edited expense with ID %s\n", id)
 	return s.writeExpensesFile(s.filePath, data)
 }
+
+func generateExpensesFromRecurring(recExp RecurringExpense, fromToday bool) []Expense {
+	var expenses []Expense
+	currentDate := recExp.StartDate
+	today := time.Now()
+	occurrencesToGenerate := recExp.Occurrences
+	if fromToday {
+		for currentDate.Before(today) && (recExp.Occurrences == 0 || occurrencesToGenerate > 0) {
+			switch recExp.Interval {
+			case "daily":
+				currentDate = currentDate.AddDate(0, 0, 1)
+			case "weekly":
+				currentDate = currentDate.AddDate(0, 0, 7)
+			case "monthly":
+				currentDate = currentDate.AddDate(0, 1, 0)
+			case "yearly":
+				currentDate = currentDate.AddDate(1, 0, 0)
+			default:
+				return expenses
+			}
+			if recExp.Occurrences > 0 {
+				occurrencesToGenerate--
+			}
+		}
+	}
+	limit := occurrencesToGenerate
+
+	for range limit {
+		if currentDate.Year() > 9999 {
+			break
+		}
+
+		expense := Expense{
+			ID:          uuid.New().String(),
+			RecurringID: recExp.ID,
+			Name:        recExp.Name,
+			Category:    recExp.Category,
+			Amount:      recExp.Amount,
+			Currency:    recExp.Currency,
+			Date:        currentDate,
+			Tags:        recExp.Tags,
+		}
+		expenses = append(expenses, expense)
+		switch recExp.Interval {
+		case "daily":
+			currentDate = currentDate.AddDate(0, 0, 1)
+		case "weekly":
+			currentDate = currentDate.AddDate(0, 0, 7)
+		case "monthly":
+			currentDate = currentDate.AddDate(0, 1, 0)
+		case "yearly":
+			currentDate = currentDate.AddDate(1, 0, 0)
+		default:
+			return expenses
+		}
+	}
+	return expenses
+}

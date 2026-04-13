@@ -1,8 +1,32 @@
 package cli
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+var catFrames = []string{
+	` /\_/\  
+( $.$ )  
+(  >💳 )  ExpenseCat`,
+
+	` /\_/\  
+( -.- )  
+(  >💳 )  ExpenseCat`,
+
+	` /\_/\  
+( $.$ )  
+(  >💰 )  ExpenseCat`,
+
+	` /\_/\  
+( o.o )  
+(  >💳 )  ExpenseCat`,
+}
+
+type tickMsg time.Time
+
+const animationTickRate = 200 * time.Millisecond
 
 const (
 	MenuImport = iota
@@ -11,9 +35,11 @@ const (
 )
 
 type MainMenuModel struct {
-	cursor   int
-	choices  []string
-	quitting bool
+	cursor     int
+	choices    []string
+	quitting   bool
+	frameIndex int
+	tickCount  int
 }
 
 func NewMainMenuModel() MainMenuModel {
@@ -26,8 +52,14 @@ func NewMainMenuModel() MainMenuModel {
 	}
 }
 
+func tickCmd() tea.Cmd {
+	return tea.Tick(animationTickRate, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
 func (m MainMenuModel) Init() tea.Cmd {
-	return nil
+	return tickCmd()
 }
 
 func (m MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -61,12 +93,19 @@ func (m MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 		}
+	case tickMsg:
+		m.tickCount++
+		if m.tickCount%4 == 0 {
+			m.frameIndex = (m.frameIndex + 1) % len(catFrames)
+		}
+		return m, tickCmd()
 	}
 	return m, nil
 }
 
 func (m MainMenuModel) View() string {
-	s := "ExpenseCat\n"
+	s := catFrames[m.frameIndex] + "\n\n"
+	s += "Main Menu\n"
 	s += "─────────────────────────────\n"
 
 	for i, choice := range m.choices {

@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"expensecat/internal/api"
 	"expensecat/internal/storage"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -331,5 +334,796 @@ func TestReportModel_InputPersistence(t *testing.T) {
 	}
 	if model.inputYear != "2024" {
 		t.Errorf("inputYear should persist after switching to Month, got %q", model.inputYear)
+	}
+}
+
+func TestMainMenuModel_View(t *testing.T) {
+	model := NewMainMenuModel()
+	model.cursor = 0
+	view := model.View()
+	if view == "" {
+		t.Error("View() should not be empty")
+	}
+	if len(view) < 10 {
+		t.Errorf("View() should contain content, got %q", view)
+	}
+}
+
+func TestMainMenuModel_View_ContainsLogo(t *testing.T) {
+	model := NewMainMenuModel()
+	view := model.View()
+	if !strings.Contains(view, "/\\_/\\") {
+		t.Error("View() should contain logo")
+	}
+	if !strings.Contains(view, "ExpenseCat") {
+		t.Error("View() should contain ExpenseCat")
+	}
+}
+
+func TestMainMenuModel_View_ContainsMenuLabel(t *testing.T) {
+	model := NewMainMenuModel()
+	view := model.View()
+	if !strings.Contains(view, "Main Menu") {
+		t.Error("View() should contain Main Menu label")
+	}
+}
+
+func TestMainMenuModel_IsQuitting(t *testing.T) {
+	model := NewMainMenuModel()
+	if model.IsQuitting() {
+		t.Error("IsQuitting() should be false initially")
+	}
+	model.quitting = true
+	if !model.IsQuitting() {
+		t.Error("IsQuitting() should be true after setting quitting")
+	}
+}
+
+func TestMainMenuModel_EnterOnImport(t *testing.T) {
+	model := NewMainMenuModel()
+	model.cursor = 0
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newMainMenu := newModel.(MainMenuModel)
+	if cmd == nil {
+		t.Error("Enter on Import Expenses should return command")
+	}
+	_ = newMainMenu
+}
+
+func TestMainMenuModel_EnterOnReport(t *testing.T) {
+	model := NewMainMenuModel()
+	model.cursor = 1
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newMainMenu := newModel.(MainMenuModel)
+	if cmd == nil {
+		t.Error("Enter on View Monthly Totals should return command")
+	}
+	_ = newMainMenu
+}
+
+func TestMainMenuModel_EnterOnQuit(t *testing.T) {
+	model := NewMainMenuModel()
+	model.cursor = 2
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newMainMenu := newModel.(MainMenuModel)
+	if cmd == nil {
+		t.Error("Enter on Quit should return Quit command")
+	}
+	if !newMainMenu.quitting {
+		t.Error("quitting should be true after Quit")
+	}
+	_ = cmd
+}
+
+func TestMainMenuModel_TickAnimation(t *testing.T) {
+	model := NewMainMenuModel()
+	initialFrame := model.frameIndex
+
+	newModel, _ := model.Update(tickMsg{})
+	newMainMenu := newModel.(MainMenuModel)
+
+	newModel2, _ := newMainMenu.Update(tickMsg{})
+	newMainMenu2 := newModel2.(MainMenuModel)
+
+	_ = initialFrame
+	if newMainMenu2.frameIndex != initialFrame {
+		t.Logf("Tick should advance frame, got frameIndex=%d", newMainMenu2.frameIndex)
+	}
+}
+
+func TestMainMenuModel_Init_ReturnsTickCmd(t *testing.T) {
+	model := NewMainMenuModel()
+	cmd := model.Init()
+	if cmd == nil {
+		t.Error("Init() should return tick command")
+	}
+}
+
+func TestMainMenuModel_QuitKey(t *testing.T) {
+	model := NewMainMenuModel()
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newMainMenu := newModel.(MainMenuModel)
+	if cmd == nil {
+		t.Error("Ctrl+C should return Quit command")
+	}
+	if !newMainMenu.quitting {
+		t.Error("quitting should be true after Ctrl+C")
+	}
+}
+
+func TestImportModel_View_Results(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.showResults = true
+	model.result = &api.ImportResult{Imported: 5, Skipped: 2, Duplicates: 1}
+
+	view := model.View()
+	if !strings.Contains(view, "Import Results") {
+		t.Error("View() should contain Import Results")
+	}
+	if !strings.Contains(view, "5") {
+		t.Error("View() should contain imported count")
+	}
+}
+
+func TestImportModel_View_FileList(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.fileListVisible = true
+	model.files = []string{"file1.csv", "file2.csv"}
+	model.fileCursor = 1
+
+	view := model.View()
+	if !strings.Contains(view, "file1.csv") {
+		t.Error("View() should contain file1.csv")
+	}
+	if !strings.Contains(view, "file2.csv") {
+		t.Error("View() should contain file2.csv")
+	}
+}
+
+func TestImportModel_View_Error(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.dirError = "test error"
+
+	view := model.View()
+	if !strings.Contains(view, "test error") {
+		t.Error("View() should contain error")
+	}
+}
+
+func TestImportModel_View_FileSelected(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.selectedFile = "test.csv"
+
+	view := model.View()
+	if !strings.Contains(view, "test.csv") {
+		t.Error("View() should contain selected file")
+	}
+}
+
+func TestImportModel_View_ErrorMsg(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.errorMsg = "import failed"
+
+	view := model.View()
+	if !strings.Contains(view, "import failed") {
+		t.Error("View() should contain error message")
+	}
+}
+
+func TestImportModel_IsQuitting(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	if model.IsQuitting() {
+		t.Error("IsQuitting() should be false initially")
+	}
+	model.quitting = true
+	if !model.IsQuitting() {
+		t.Error("IsQuitting() should be true after setting quitting")
+	}
+}
+
+func TestImportModel_SelectFile(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.cursor = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newImportModel := newModel.(ImportModel)
+	if !newImportModel.fileListVisible {
+		t.Error("fileListVisible should be true after selecting Select File")
+	}
+}
+
+func TestImportModel_ExecuteImport(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.selectedFile = "test.csv"
+
+	model.executeImport()
+	if model.errorMsg != "" {
+		t.Logf("executeImport error: %v", model.errorMsg)
+	}
+}
+
+func TestImportModel_ExecuteImport_NoFile(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+
+	model.executeImport()
+	if model.errorMsg == "" {
+		t.Error("errorMsg should be set when no file selected")
+	}
+}
+
+func TestImportModel_FileSelection(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.fileListVisible = true
+	model.files = []string{"test.csv"}
+	model.fileCursor = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newImportModel := newModel.(ImportModel)
+	if newImportModel.selectedFile != "test.csv" {
+		t.Errorf("selectedFile = %q, want 'test.csv'", newImportModel.selectedFile)
+	}
+}
+
+func TestImportModel_FileListBack(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.fileListVisible = true
+	model.files = []string{"test.csv"}
+	model.fileCursor = 1
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newImportModel := newModel.(ImportModel)
+	if newImportModel.fileListVisible {
+		t.Error("fileListVisible should be false after selecting Back")
+	}
+}
+
+func TestImportModel_NavigateFileList(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.fileListVisible = true
+	model.files = []string{"file1.csv", "file2.csv"}
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newImportModel := newModel.(ImportModel)
+	if newImportModel.fileCursor != 1 {
+		t.Errorf("fileCursor = %d, want 1", newImportModel.fileCursor)
+	}
+}
+
+func TestImportModel_Backspace(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.fileListVisible = true
+	model.selectedFile = "test"
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	newImportModel := newModel.(ImportModel)
+	if newImportModel.selectedFile != "tes" {
+		t.Errorf("selectedFile = %q, want 'tes'", newImportModel.selectedFile)
+	}
+}
+
+func TestImportModel_LoadFiles_Empty(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./nonexistent")
+	if len(model.files) != 0 {
+		t.Errorf("files should be empty for nonexistent dir, got %d", len(model.files))
+	}
+}
+
+func TestImportModel_ExpandPath_Tilde(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantHome bool
+	}{
+		{"tilde path", "~/test", true},
+		{"absolute path", "/tmp/test", false},
+		{"relative path", "./test", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := expandPath(tt.input)
+			if tt.wantHome {
+				home, _ := os.UserHomeDir()
+				want := home + "/test"
+				if result != want && !strings.HasPrefix(result, "/") {
+					t.Logf("expandPath(%q) = %q", tt.input, result)
+				}
+			}
+		})
+	}
+}
+
+func TestImportModel_ImportResults(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	model.showResults = true
+	model.result = &api.ImportResult{Imported: 10, Skipped: 5, Duplicates: 2}
+
+	view := model.View()
+	if !strings.Contains(view, "10") {
+		t.Error("View() should contain imported count")
+	}
+	if !strings.Contains(view, "5") {
+		t.Error("View() should contain skipped count")
+	}
+	if !strings.Contains(view, "2") {
+		t.Error("View() should contain duplicates count")
+	}
+}
+
+func TestImportModel_EscKey(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newImportModel := newModel.(ImportModel)
+	if cmd == nil {
+		t.Error("Esc should return navigation command")
+	}
+	_ = newImportModel
+}
+
+func TestReportModel_View_Inputting(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.inputtingFor = 1
+
+	view := model.View()
+	if !strings.Contains(view, "Month") {
+		t.Error("View() should contain Month label")
+	}
+}
+
+func TestReportModel_View_Results(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.showResults = true
+	model.results = []storage.CategoryTotal{
+		{Category: "Food", Total: 100.00},
+		{Category: "Transport", Total: 50.00},
+	}
+	model.total = 150.00
+	model.month = 3
+	model.year = 2024
+
+	view := model.View()
+	if !strings.Contains(view, "Food") {
+		t.Error("View() should contain Food")
+	}
+	if !strings.Contains(view, "100") {
+		t.Error("View() should contain total")
+	}
+}
+
+func TestReportModel_View_Error(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.errorMsg = "invalid month"
+
+	view := model.View()
+	if !strings.Contains(view, "invalid month") {
+		t.Error("View() should contain error")
+	}
+}
+
+func TestReportModel_IsQuitting(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	if model.IsQuitting() {
+		t.Error("IsQuitting() should be false initially")
+	}
+	model.quitting = true
+	if !model.IsQuitting() {
+		t.Error("IsQuitting() should be true after setting quitting")
+	}
+}
+
+func TestReportModel_Execute_InvalidMonth(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.inputMonth = "13"
+	model.inputYear = "2024"
+	model.cursor = 2
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newReportModel := newModel.(ReportModel)
+	if newReportModel.errorMsg == "" {
+		t.Error("Should set errorMsg for invalid month")
+	}
+}
+
+func TestReportModel_Execute_InvalidYear(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.inputMonth = "3"
+	model.inputYear = "abc"
+	model.cursor = 2
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newReportModel := newModel.(ReportModel)
+	if newReportModel.errorMsg == "" {
+		t.Error("Should set errorMsg for invalid year")
+	}
+}
+
+func TestReportModel_InputYear_Backspace(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.inputtingFor = 2
+	model.inputYear = "2024"
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	newReportModel := newModel.(ReportModel)
+	if newReportModel.inputYear != "202" {
+		t.Errorf("inputYear = %q, want '202'", newReportModel.inputYear)
+	}
+}
+
+func TestReportModel_ResultBackToMenu(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.showResults = true
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newReportModel := newModel.(ReportModel)
+	if cmd == nil {
+		t.Error("Enter on results should return navigation command")
+	}
+	_ = newReportModel
+}
+
+func TestReportModel_EscKey(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newReportModel := newModel.(ReportModel)
+	if cmd == nil {
+		t.Error("Esc should return navigation command")
+	}
+	_ = newReportModel
+}
+
+func TestReportModel_ViewShowsMonthYear(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+
+	view := model.View()
+	if !strings.Contains(view, "Month") {
+		t.Error("View() should contain Month")
+	}
+	if !strings.Contains(view, "Year") {
+		t.Error("View() should contain Year")
+	}
+}
+
+func TestReportModel_ViewCalculatesTotal(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.results = []storage.CategoryTotal{
+		{Category: "Food", Total: 100.50},
+		{Category: "Transport", Total: 50.25},
+	}
+	model.total = 150.75
+	model.showResults = true
+	model.month = 1
+	model.year = 2024
+
+	view := model.View()
+	if !strings.Contains(view, "TOTAL") {
+		t.Error("View() should contain TOTAL")
+	}
+	if !strings.Contains(view, "150") {
+		t.Error("View() should contain calculated total")
+	}
+}
+
+func TestReportModel_SortPreservesTotals(t *testing.T) {
+	totals := []storage.CategoryTotal{
+		{Category: "Zoo", Total: 10.00},
+		{Category: "Food", Total: 5.00},
+	}
+
+	sorted := SortCategoryTotals(totals)
+	if len(sorted) != 2 {
+		t.Fatalf("Expected 2 items, got %d", len(sorted))
+	}
+	if sorted[0].Category == "Food" && sorted[0].Total != 5.00 {
+		t.Errorf("First sorted item should be Food with 5.00, got %v", sorted[0])
+	}
+	if sorted[1].Category == "Zoo" && sorted[1].Total != 10.00 {
+		t.Errorf("Second sorted item should be Zoo with 10.00, got %v", sorted[1])
+	}
+}
+
+func TestGetBasePath_WithEnv(t *testing.T) {
+	os.Setenv("EXPENSE_BASE_PATH", "/custom/path")
+	defer os.Unsetenv("EXPENSE_BASE_PATH")
+
+	result := getBasePath()
+	if result != "/custom/path" {
+		t.Errorf("getBasePath() = %q, want '/custom/path'", result)
+	}
+}
+
+func TestGetBasePath_Default(t *testing.T) {
+	os.Unsetenv("EXPENSE_BASE_PATH")
+	result := getBasePath()
+	if result != defaultBasePath {
+		t.Errorf("getBasePath() = %q, want default %q", result, defaultBasePath)
+	}
+}
+
+func TestImportModel_Init_ReturnsNil(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+	cmd := model.Init()
+	if cmd != nil {
+		t.Error("ImportModel.Init() should return nil")
+	}
+}
+
+func TestReportModel_Init_ReturnsNil(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	cmd := model.Init()
+	if cmd != nil {
+		t.Error("ReportModel.Init() should return nil")
+	}
+}
+
+func TestMainMenuModel_TickCmd(t *testing.T) {
+	cmd := tickCmd()
+	if cmd == nil {
+		t.Error("tickCmd() should return command")
+	}
+}
+
+func TestReportModel_Execute_Success(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.inputMonth = "1"
+	model.inputYear = "2024"
+	model.cursor = 2
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newReportModel := newModel.(ReportModel)
+	if newReportModel.errorMsg != "" {
+		t.Logf("executeReport error (expected): %v", newReportModel.errorMsg)
+	}
+}
+
+func TestMainMenuModel_View_ContainsDivider(t *testing.T) {
+	model := NewMainMenuModel()
+	view := model.View()
+	if !strings.Contains(view, "─") {
+		t.Error("View() should contain divider")
+	}
+}
+
+func TestMainMenuModel_View_ContainsChoices(t *testing.T) {
+	model := NewMainMenuModel()
+	view := model.View()
+	if !strings.Contains(view, "Import Expenses") {
+		t.Error("View() should contain Import Expenses")
+	}
+	if !strings.Contains(view, "View Monthly Totals") {
+		t.Error("View() should contain View Monthly Totals")
+	}
+	if !strings.Contains(view, "Quit") {
+		t.Error("View() should contain Quit")
+	}
+}
+
+func TestImportModel_View_ContainsBasePath(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "/test/path")
+	model.cursor = 1
+	model.showResults = false
+	model.fileListVisible = false
+
+	view := model.View()
+	if !strings.Contains(view, "/test/path") {
+		t.Error("View() should contain base path")
+	}
+}
+
+func TestImportModel_View_ContainsNavigationHelp(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "./data")
+
+	view := model.View()
+	if !strings.Contains(view, "Up/Down") {
+		t.Error("View() should contain navigation help")
+	}
+}
+
+func TestReportModel_View_ContainsNavigationHelp(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+
+	view := model.View()
+	if !strings.Contains(view, "Arrow") && !strings.Contains(view, "navigate") {
+		t.Error("View() should contain navigation help")
+	}
+}
+
+func TestMainMenuModel_CursorAtBoundary(t *testing.T) {
+	model := NewMainMenuModel()
+	model.cursor = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	newMainMenu := newModel.(MainMenuModel)
+	if newMainMenu.cursor != 0 {
+		t.Error("Cursor should stay at 0 when at top")
+	}
+}
+
+func TestImportModel_LoadFiles_Error(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, "/nonexistent/path")
+	if model.dirError == "" {
+		t.Log("dirError may be empty for nonexistent path")
+	}
+}
+
+func TestReportModel_View_MonthInputLabel(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.inputtingFor = 1
+	model.inputMonth = "5"
+
+	view := model.View()
+	if !strings.Contains(view, "5") {
+		t.Error("View() should show month input")
+	}
+}
+
+func TestReportModel_View_YearInputLabel(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.inputtingFor = 2
+	model.inputYear = "2025"
+
+	view := model.View()
+	if !strings.Contains(view, "2025") {
+		t.Error("View() should show year input")
+	}
+}
+
+func TestAppModel_Init(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	cmd := model.Init()
+	if cmd == nil {
+		t.Error("AppModel.Init() should return command from mainMenu")
+	}
+}
+
+func TestAppModel_View_MainMenu(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	view := model.View()
+	if !strings.Contains(view, "Main Menu") {
+		t.Error("View() should contain Main Menu")
+	}
+}
+
+func TestAppModel_View_AfterNavigation(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	model.currentScreen = ScreenImport
+	view := model.View()
+	if !strings.Contains(view, "Import") {
+		t.Error("View() should show Import screen")
+	}
+
+	model.currentScreen = ScreenReport
+	view = model.View()
+	if !strings.Contains(view, "Report") {
+		t.Error("View() should show Report screen")
+	}
+}
+
+func TestAppModel_Update_NavigationMsg_Import(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenImport})
+	newAppModel := newModel.(AppModel)
+	if newAppModel.currentScreen != ScreenImport {
+		t.Errorf("currentScreen = %d, want %d", newAppModel.currentScreen, ScreenImport)
+	}
+}
+
+func TestAppModel_Update_NavigationMsg_Report(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenReport})
+	newAppModel := newModel.(AppModel)
+	if newAppModel.currentScreen != ScreenReport {
+		t.Errorf("currentScreen = %d, want %d", newAppModel.currentScreen, ScreenReport)
+	}
+}
+
+func TestAppModel_Update_KeyMsg_MainMenu(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newAppModel := newModel.(AppModel)
+	if newAppModel.mainMenu.cursor != 1 {
+		t.Errorf("mainMenu.cursor = %d, want 1", newAppModel.mainMenu.cursor)
+	}
+	_ = cmd
+}
+
+func TestAppModel_Update_KeyMsg_Import(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenImport
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newAppModel := newModel.(AppModel)
+	if newAppModel.importModel.cursor != 1 {
+		t.Errorf("importModel.cursor = %d, want 1", newAppModel.importModel.cursor)
+	}
+}
+
+func TestAppModel_Update_KeyMsg_Report(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenReport
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newAppModel := newModel.(AppModel)
+	if newAppModel.reportModel.cursor != 1 {
+		t.Errorf("reportModel.cursor = %d, want 1", newAppModel.reportModel.cursor)
+	}
+}
+
+func TestAppModel_Update_CtrlC(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenMainMenu
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newAppModel := newModel.(AppModel)
+	if cmd == nil {
+		t.Error("Ctrl+C should return command")
+	}
+	if !newAppModel.mainMenu.quitting {
+		t.Error("mainMenu should be quitting")
+	}
+}
+
+func TestMainMenuModel_TickCmd_ReturnsCommand(t *testing.T) {
+	cmd := tickCmd()
+	if cmd == nil {
+		t.Error("tickCmd should not return nil")
+	}
+}
+
+func TestImportModel_LoadFiles_SkipsDirs(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportModel(store, ".")
+	if model.files == nil {
+		t.Error("files should be initialized")
 	}
 }

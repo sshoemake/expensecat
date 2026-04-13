@@ -13,7 +13,7 @@ This document provides guidance for agentic coding agents working in this reposi
 
 ### Build Commands
 ```bash
-go build              # Build the application
+go build -o bin/expensecat # Build the application
 go run .              # Run the application
 go mod tidy           # Clean up dependencies
 ```

@@ -19,14 +19,14 @@ jobs:
 
       - name: Build binaries
         run: |
-          GOOS=linux GOARCH=amd64 go build -o myapp-linux
-          GOOS=darwin GOARCH=amd64 go build -o myapp-macos
-          GOOS=windows GOARCH=amd64 go build -o myapp.exe
+          GOOS=linux GOARCH=amd64 go build -o bin/expensecat-linux
+          GOOS=darwin GOARCH=amd64 go build -o bin/expensecat-darwin
+          GOOS=windows GOARCH=amd64 go build -o bin/expensecat.exe
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            myapp-linux
-            myapp-macos
-            myapp.exe
+            bin/expensecat-linux
+            bin/expensecat-darwin
+            bin/expensecat.exe

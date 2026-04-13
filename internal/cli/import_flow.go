@@ -11,6 +11,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var importLogo = ` /\_/\  
+( $.$ )  
+(  >💳 )  ExpenseCat`
+
 type ImportModel struct {
 	storage         storage.Storage
 	basePath        string
@@ -157,6 +161,8 @@ func (m *ImportModel) executeImport() {
 
 func (m ImportModel) View() string {
 	var s strings.Builder
+
+	s.WriteString(importLogo + "\n\n")
 
 	if m.showResults {
 		s.WriteString("Import Results\n")

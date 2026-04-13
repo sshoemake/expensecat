@@ -39,7 +39,7 @@ func getBasePath() string {
 }
 
 func (m AppModel) Init() tea.Cmd {
-	return nil
+	return m.mainMenu.Init()
 }
 
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

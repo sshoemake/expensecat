@@ -11,6 +11,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var reportLogo = ` /\_/\  
+( $.$ )  
+(  >💳 )  ExpenseCat`
+
 type ReportModel struct {
 	storage      storage.Storage
 	cursor       int
@@ -126,6 +130,8 @@ func (m *ReportModel) executeReport() {
 
 func (m ReportModel) View() string {
 	var s strings.Builder
+
+	s.WriteString(reportLogo + "\n\n")
 
 	if m.showResults {
 		monthName := time.Month(m.month).String()
