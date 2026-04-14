@@ -14,69 +14,24 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     outputs:
-      pr_body: ${{ steps.pr_desc.outputs.body }}
+      version: ${{ steps.setver.outputs.version }}
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: main
+      - id: setver
+        run: echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
 
       - name: Validate version format
         run: |
           if [[ ! "${{ github.event.inputs.version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Error: Version must look like vX.Y.Z (e.g., v1.0.0)"
+            echo "Invalid version"
             exit 1
           fi
 
-      - name: Fetch tags
-        run: git fetch --tags
-
-      - name: Check for existing tag
+      - name: Check tag doesn't exist
         run: |
-          if git rev-parse "${{ github.event.inputs.version }}" >/dev/null 2>&1; then
-            echo "Error: Tag '${{ github.event.inputs.version }}' already exists!"
-            exit 1
-          fi
+          git fetch --tags
+          git ls-remote --tags origin | grep "${{ github.event.inputs.version }}" && exit 1 || true
 
-      - name: Get latest merged PR description
-        id: pr_desc
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prs = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "closed",
-              base: "main",
-              sort: "updated",
-              direction: "desc",
-              per_page: 1,
-            });
-
-            if (prs.data.length === 0) {
-              core.setOutput("body", "No merged PRs found");
-            } else {
-              core.setOutput("body", prs.data[0].body || "No description");
-            }
-
-  create-tag:
-    needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Create git tag
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git tag ${{ github.event.inputs.version }}
-          git push origin ${{ github.event.inputs.version }}
-
-  build:
+  build-and-release:
     needs: validate
     runs-on: ubuntu-latest
     strategy:
@@ -100,68 +55,30 @@ jobs:
           - os: windows
             arch: arm64
             ext: ".exe"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: "1.25"
 
       - name: Build binary
         env:
           VERSION: ${{ github.event.inputs.version }}
         run: |
-          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
-            -ldflags="-X 'main.version=${{ env.VERSION }}'" \
-            -o "expensecat-${{ env.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}" \
+          mkdir -p dist
+
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
+          go build \
+            -ldflags="-X 'main.version=${VERSION}'" \
+            -o dist/expensecat-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} \
             .
 
-      - name: Upload binary
-        env:
-          VERSION: ${{ github.event.inputs.version }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: expensecat-${{ matrix.os }}-${{ matrix.arch }}
-          path: expensecat-${{ env.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}
-          retention-days: 5
-
-  release:
-    needs: [validate, build, create-tag]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all binaries
-        uses: actions/download-artifact@v4
-        with:
-          path: binaries
-
-      - name: Set release notes
-        run: |
-          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
-          echo "## Release ${{ github.event.inputs.version }}" >> $GITHUB_ENV
-          echo "" >> $GITHUB_ENV
-          echo "## Latest Merged PR" >> $GITHUB_ENV
-          echo "${{ needs.validate.outputs.pr_body }}" >> $GITHUB_ENV
-          echo "" >> $GITHUB_ENV
-          echo "## Downloads" >> $GITHUB_ENV
-          echo "Pre-compiled binaries for Linux, macOS, and Windows (amd64 and arm64)." >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-      - name: Create GitHub Release
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.version }}
-          body: ${{ env.RELEASE_BODY }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload binaries to release
-        run: |
-          for file in binaries/expensecat-*; do
-            if [ -f "$file" ]; then
-              gh release upload "${{ github.event.inputs.version }}" "$file" --clobber
-            fi
-          done
+          files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
