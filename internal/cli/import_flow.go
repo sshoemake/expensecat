@@ -119,12 +119,13 @@ func (m ImportModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			if m.cursor == 0 {
+			switch m.cursor {
+			case 0:
 				m.fileListVisible = true
 				m.fileCursor = 0
-			} else if m.cursor == 1 {
+			case 1:
 				m.executeImport()
-			} else if m.cursor == 2 {
+			case 2:
 				return m, func() tea.Msg {
 					return NavigationMsg{Destination: ScreenMainMenu}
 				}
@@ -168,9 +169,9 @@ func (m ImportModel) View() string {
 		s.WriteString("Import Results\n")
 		s.WriteString("─────────────────────────────\n")
 		if m.result != nil {
-			s.WriteString(fmt.Sprintf("Imported:    %d expenses\n", m.result.Imported))
-			s.WriteString(fmt.Sprintf("Skipped:     %d records\n", m.result.Skipped))
-			s.WriteString(fmt.Sprintf("Duplicates:  %d records\n", m.result.Duplicates))
+			fmt.Fprintf(&s, "Imported:    %d expenses\n", m.result.Imported)
+			fmt.Fprintf(&s, "Skipped:     %d records\n", m.result.Skipped)
+			fmt.Fprintf(&s, "Duplicates:  %d records\n", m.result.Duplicates)
 		}
 		s.WriteString("\nPress any key to return\n")
 		return s.String()
@@ -178,10 +179,10 @@ func (m ImportModel) View() string {
 
 	s.WriteString("Import Expenses\n")
 	s.WriteString("─────────────────────────────\n")
-	s.WriteString(fmt.Sprintf("Base path: %s\n", m.basePath))
+	fmt.Fprintf(&s, "Base path: %s\n", m.basePath)
 
 	if m.dirError != "" {
-		s.WriteString(fmt.Sprintf("\nError: %s\n", m.dirError))
+		fmt.Fprintf(&s, "\nError: %s\n", m.dirError)
 	}
 
 	s.WriteString("\n")
@@ -196,7 +197,7 @@ func (m ImportModel) View() string {
 				if m.fileCursor == i {
 					cursor = "> "
 				}
-				s.WriteString(fmt.Sprintf("%s%s\n", cursor, file))
+				fmt.Fprintf(&s, "%s%s\n", cursor, file)
 			}
 		}
 
@@ -205,13 +206,13 @@ func (m ImportModel) View() string {
 		if m.fileCursor == len(m.files) {
 			cursor = "> "
 		}
-		s.WriteString(fmt.Sprintf("%s[Back to menu]\n", cursor))
+		fmt.Fprintf(&s, "%s[Back to menu]\n", cursor)
 
 		s.WriteString("\nUp/Down to navigate, Enter to select, Esc to go back\n")
 	} else {
-		s.WriteString(fmt.Sprintf("Selected file: %s\n", m.selectedFile))
+		fmt.Fprintf(&s, "Selected file: %s\n", m.selectedFile)
 		if m.errorMsg != "" {
-			s.WriteString(fmt.Sprintf("\nError: %s\n", m.errorMsg))
+			fmt.Fprintf(&s, "\nError: %s\n", m.errorMsg)
 		}
 
 		s.WriteString("\n")
@@ -219,19 +220,19 @@ func (m ImportModel) View() string {
 		if m.cursor == 0 {
 			cursor = "> "
 		}
-		s.WriteString(fmt.Sprintf("%s[Select File]\n", cursor))
+		fmt.Fprintf(&s, "%s[Select File]\n", cursor)
 
 		cursor = "  "
 		if m.cursor == 1 {
 			cursor = "> "
 		}
-		s.WriteString(fmt.Sprintf("%s[Import]\n", cursor))
+		fmt.Fprintf(&s, "%s[Import]\n", cursor)
 
 		cursor = "  "
 		if m.cursor == 2 {
 			cursor = "> "
 		}
-		s.WriteString(fmt.Sprintf("%s[Back]\n", cursor))
+		fmt.Fprintf(&s, "%s[Back]\n", cursor)
 
 		s.WriteString("\nUp/Down to navigate, Enter to select option, Esc to go back\n")
 	}

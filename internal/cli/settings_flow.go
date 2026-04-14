@@ -88,7 +88,7 @@ func (m SettingsModel) View() string {
 		if m.cursor == i {
 			cursor = "> "
 		}
-		s.WriteString(fmt.Sprintf("%s%s\n", cursor, choice))
+		fmt.Fprintf(&s, "%s%s\n", cursor, choice)
 	}
 
 	s.WriteString("\n↑↓ Navigate  Enter Select\n")
@@ -149,14 +149,15 @@ func (m ExclusionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		case "esc":
-			if m.mode == ExclusionListAdd {
+			switch m.mode {
+			case ExclusionListAdd:
 				m.inputValue = ""
 				m.mode = ExclusionListMenu
 				m.cursor = 0
-			} else if m.mode == ExclusionListRemove {
+			case ExclusionListRemove:
 				m.mode = ExclusionListMenu
 				m.cursor = 0
-			} else if m.mode == ExclusionListMenu {
+			case ExclusionListMenu:
 				return m, func() tea.Msg {
 					return NavigationMsg{Destination: ScreenSettings}
 				}
@@ -166,30 +167,33 @@ func (m ExclusionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "down", "j":
-			if m.mode == ExclusionListMenu {
+			switch m.mode {
+			case ExclusionListMenu:
 				if m.cursor < 2 {
 					m.cursor++
 				}
-			} else if m.mode == ExclusionListRemove {
+			case ExclusionListRemove:
 				maxChoices := len(m.patterns) + 1
 				if m.cursor < maxChoices-1 {
 					m.cursor++
 				}
 			}
 		case "enter":
-			if m.mode == ExclusionListMenu {
-				if m.cursor == 0 {
+			switch m.mode {
+			case ExclusionListMenu:
+				switch m.cursor {
+				case 0:
 					m.mode = ExclusionListAdd
 					m.inputValue = ""
-				} else if m.cursor == 1 {
+				case 1:
 					m.mode = ExclusionListRemove
 					m.cursor = 0
-				} else if m.cursor == 2 {
+				case 2:
 					return m, func() tea.Msg {
 						return NavigationMsg{Destination: ScreenSettings}
 					}
 				}
-			} else if m.mode == ExclusionListAdd {
+			case ExclusionListAdd:
 				if m.inputValue != "" {
 					err := m.store.AddExclusion(m.inputValue)
 					if err != nil {
@@ -202,7 +206,7 @@ func (m ExclusionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.mode = ExclusionListMenu
 					m.cursor = 0
 				}
-			} else if m.mode == ExclusionListRemove {
+			case ExclusionListRemove:
 				if m.cursor < len(m.patterns) {
 					m.removePattern(m.patterns[m.cursor])
 					m.loadPatterns()
@@ -243,41 +247,40 @@ func (m ExclusionListModel) View() string {
 	s.WriteString("─────────────────────────────\n")
 
 	if m.errorMsg != "" {
-		s.WriteString(fmt.Sprintf("Error: %s\n\n", m.errorMsg))
-		m.errorMsg = ""
+		fmt.Fprintf(&s, "Error: %s\n\n", m.errorMsg)
 	}
 	if m.successMsg != "" {
-		s.WriteString(fmt.Sprintf("✓ %s\n\n", m.successMsg))
-		m.successMsg = ""
+		fmt.Fprintf(&s, "✓ %s\n\n", m.successMsg)
 	}
 
-	if m.mode == ExclusionListAdd {
+	switch m.mode {
+	case ExclusionListAdd:
 		s.WriteString("Enter new pattern:\n")
-		s.WriteString(fmt.Sprintf("> %s_\n", m.inputValue))
+		fmt.Fprintf(&s, "> %s_\n", m.inputValue)
 		s.WriteString("\nPress Enter to add, Esc to cancel\n")
-	} else if m.mode == ExclusionListRemove {
+	case ExclusionListRemove:
 		s.WriteString("Select pattern to remove:\n\n")
 		for i, pattern := range m.patterns {
 			cursor := "  "
 			if m.cursor == i {
 				cursor = "> "
 			}
-			s.WriteString(fmt.Sprintf("%s%s\n", cursor, pattern))
+			fmt.Fprintf(&s, "%s%s\n", cursor, pattern)
 		}
 		cursor := "  "
 		if m.cursor == len(m.patterns) {
 			cursor = "> "
 		}
-		s.WriteString(fmt.Sprintf("%s[Back to Settings]\n", cursor))
+		fmt.Fprintf(&s, "%s[Back to Settings]\n", cursor)
 		s.WriteString("\n↑↓ Navigate  Enter to remove\n")
 		s.WriteString("Esc to cancel\n")
-	} else {
-		s.WriteString(fmt.Sprintf("Current patterns (%d):\n\n", len(m.patterns)))
+	default:
+		fmt.Fprintf(&s, "Current patterns (%d):\n\n", len(m.patterns))
 		if len(m.patterns) == 0 {
 			s.WriteString("  (no patterns defined)\n")
 		} else {
 			for _, pattern := range m.patterns {
-				s.WriteString(fmt.Sprintf("  • %s\n", pattern))
+				fmt.Fprintf(&s, "  • %s\n", pattern)
 			}
 		}
 
@@ -288,7 +291,7 @@ func (m ExclusionListModel) View() string {
 			if m.cursor == i {
 				cursor = "> "
 			}
-			s.WriteString(fmt.Sprintf("%s%s\n", cursor, choice))
+			fmt.Fprintf(&s, "%s%s\n", cursor, choice)
 		}
 
 		s.WriteString("\n↑↓ Navigate  Enter Select\n")
@@ -350,12 +353,13 @@ func (m ImportPathModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		case "esc":
-			if m.mode == ImportPathEdit {
+			switch m.mode {
+			case ImportPathEdit:
 				m.inputValue = ""
 				m.cursorPos = 0
 				m.mode = ImportPathMenu
 				m.cursor = 0
-			} else if m.mode == ImportPathMenu {
+			case ImportPathMenu:
 				return m, func() tea.Msg {
 					return NavigationMsg{Destination: ScreenSettings}
 				}
@@ -379,17 +383,19 @@ func (m ImportPathModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "enter":
-			if m.mode == ImportPathMenu {
-				if m.cursor == 0 {
+			switch m.mode {
+			case ImportPathMenu:
+				switch m.cursor {
+				case 0:
 					m.mode = ImportPathEdit
 					m.inputValue = m.path
 					m.cursorPos = len(m.path)
-				} else if m.cursor == 1 {
+				case 1:
 					return m, func() tea.Msg {
 						return NavigationMsg{Destination: ScreenSettings}
 					}
 				}
-			} else if m.mode == ImportPathEdit {
+			case ImportPathEdit:
 				if m.inputValue != "" {
 					err := m.store.UpdateImportPath(m.inputValue)
 					if err != nil {
@@ -435,22 +441,20 @@ func (m ImportPathModel) View() string {
 	s.WriteString("─────────────────────────────\n")
 
 	if m.errorMsg != "" {
-		s.WriteString(fmt.Sprintf("Error: %s\n\n", m.errorMsg))
-		m.errorMsg = ""
+		fmt.Fprintf(&s, "Error: %s\n\n", m.errorMsg)
 	}
 	if m.successMsg != "" {
-		s.WriteString(fmt.Sprintf("✓ %s\n\n", m.successMsg))
-		m.successMsg = ""
+		fmt.Fprintf(&s, "✓ %s\n\n", m.successMsg)
 	}
 
 	if m.mode == ImportPathEdit {
 		s.WriteString("Enter new path:\n")
 		before := m.inputValue[:m.cursorPos]
 		after := m.inputValue[m.cursorPos:]
-		s.WriteString(fmt.Sprintf("> %s|%s\n", before, after))
+		fmt.Fprintf(&s, "> %s|%s\n", before, after)
 		s.WriteString("\n←→ Move cursor  Enter to save, Esc to cancel\n")
 	} else {
-		s.WriteString(fmt.Sprintf("Current path:\n\n  %s\n\n", m.path))
+		fmt.Fprintf(&s, "Current path:\n\n  %s\n\n", m.path)
 
 		choices := []string{"Edit Path", "Back"}
 		for i, choice := range choices {
@@ -458,7 +462,7 @@ func (m ImportPathModel) View() string {
 			if m.cursor == i {
 				cursor = "> "
 			}
-			s.WriteString(fmt.Sprintf("%s%s\n", cursor, choice))
+			fmt.Fprintf(&s, "%s%s\n", cursor, choice)
 		}
 
 		s.WriteString("\n↑↓ Navigate  Enter Select\n")

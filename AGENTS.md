@@ -22,16 +22,17 @@ go mod tidy           # Clean up dependencies
 ```bash
 go fmt ./...          # Format code (standard go fmt)
 go vet ./...          # Run Go vet for static analysis
-golangci-lint run    # Run comprehensive linting (optional but recommended)
+golangci-lint run     # Run comprehensive linting (run before committing)
 ```
 
 ### Testing
 ```bash
 go test ./...                    # Run all tests
-go test ./... -v                 # Run all tests with verbose output
-go test ./internal/storage       # Run tests in specific package
+go test ./... -v                # Run all tests with verbose output
+go test ./internal/storage      # Run tests in specific package
 go test -run TestFunctionName   # Run single test by name
-go test -cover                   # Run tests with coverage report
+go test -cover                  # Run tests with coverage report
+go test -cover ./...            # Verify coverage (must stay >80%)
 ```
 
 **Note**: Currently no tests exist in the codebase. Agents should add tests when modifying code.
@@ -236,8 +237,9 @@ func TestExpense_Validate(t *testing.T) {
 
 1. Always run `go fmt`, `go vet`, and optionally `golangci-lint` before completing changes
 2. Add tests for new functionality
-3. Use descriptive commit messages
-4. Follow existing patterns in the codebase
-5. Use `SanitizeString()` for user input to prevent injection issues
-6. Return errors rather than panicking except in fatal initialization scenarios
-7. Run `go build -o bin/expensecat` before completing changes to ensure the executable is up to date
+3. **Coverage Check**: After any code changes, run `go test -cover ./...` to verify coverage stays >80%. If coverage drops, add tests to restore it before finishing the task.
+4. Use descriptive commit messages
+5. Follow existing patterns in the codebase
+6. Use `SanitizeString()` for user input to prevent injection issues
+7. Return errors rather than panicking except in fatal initialization scenarios
+8. Run `go build -o bin/expensecat` before completing changes to ensure the executable is up to date

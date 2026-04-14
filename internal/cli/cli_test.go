@@ -2041,3 +2041,86 @@ func TestImportPathModel_EscInMenuMode_NavigatesBack(t *testing.T) {
 		t.Error("Should return navigation cmd to settings")
 	}
 }
+
+func TestSettingsModel_Init_ReturnsNil(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+
+	cmd := model.Init()
+	if cmd != nil {
+		t.Error("Init should return nil")
+	}
+}
+
+func TestSettingsModel_IsQuitting(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+
+	if model.IsQuitting() {
+		t.Error("IsQuitting should be false initially")
+	}
+
+	model.quitting = true
+	if !model.IsQuitting() {
+		t.Error("IsQuitting should be true after quitting is set")
+	}
+}
+
+func TestExclusionListModel_Init_ReturnsNil(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+
+	cmd := model.Init()
+	if cmd != nil {
+		t.Error("Init should return nil")
+	}
+}
+
+func TestExclusionListModel_LoadPatterns(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.patterns = nil
+
+	model.loadPatterns()
+
+	if model.patterns == nil {
+		t.Error("loadPatterns should populate patterns")
+	}
+}
+
+func TestImportPathModel_Init_ReturnsNil(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+
+	cmd := model.Init()
+	if cmd != nil {
+		t.Error("Init should return nil")
+	}
+}
+
+func TestImportPathModel_LoadPath(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.path = ""
+
+	model.loadPath()
+
+	if model.path == "" {
+		t.Error("loadPath should populate path")
+	}
+}
+
+func TestAppModel_Update_NavigationMsg_ImportPathScreen(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenSettings
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenImportPath})
+	newAppModel := newModel.(AppModel)
+	if newAppModel.currentScreen != ScreenImportPath {
+		t.Errorf("currentScreen = %d, want %d", newAppModel.currentScreen, ScreenImportPath)
+	}
+	if newAppModel.importPathModel.path == "" {
+		t.Error("importPathModel.path should be populated")
+	}
+}

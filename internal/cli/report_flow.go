@@ -71,11 +71,12 @@ func (m ReportModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return NavigationMsg{Destination: ScreenMainMenu}
 				}
 			}
-			if m.cursor == 0 {
+			switch m.cursor {
+			case 0:
 				m.inputtingFor = 1
-			} else if m.cursor == 1 {
+			case 1:
 				m.inputtingFor = 2
-			} else if m.cursor == 2 {
+			case 2:
 				m.executeReport()
 			}
 		case "backspace":
@@ -86,9 +87,10 @@ func (m ReportModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		default:
 			if !m.showResults {
-				if m.inputtingFor == 1 {
+				switch m.inputtingFor {
+				case 1:
 					m.inputMonth += msg.String()
-				} else if m.inputtingFor == 2 {
+				case 2:
 					m.inputYear += msg.String()
 				}
 			}
@@ -135,15 +137,15 @@ func (m ReportModel) View() string {
 
 	if m.showResults {
 		monthName := time.Month(m.month).String()
-		s.WriteString(fmt.Sprintf("%s %d Totals\n", monthName, m.year))
+		fmt.Fprintf(&s, "%s %d Totals\n", monthName, m.year)
 		s.WriteString("─────────────────────────────\n")
 
 		for _, r := range m.results {
-			s.WriteString(fmt.Sprintf("%-15s $%9.2f\n", r.Category, r.Total))
+			fmt.Fprintf(&s, "%-15s $%9.2f\n", r.Category, r.Total)
 		}
 
 		s.WriteString("─────────────────────────────\n")
-		s.WriteString(fmt.Sprintf("%-15s $%9.2f\n", "TOTAL", m.total))
+		fmt.Fprintf(&s, "%-15s $%9.2f\n", "TOTAL", m.total)
 		s.WriteString("\nPress any key to return\n")
 		return s.String()
 	}
@@ -155,16 +157,16 @@ func (m ReportModel) View() string {
 	if monthDisplay == "" {
 		monthDisplay = "  "
 	}
-	s.WriteString(fmt.Sprintf("Enter month (1-12): %s\n", monthDisplay))
+	fmt.Fprintf(&s, "Enter month (1-12): %s\n", monthDisplay)
 
 	yearDisplay := m.inputYear
 	if yearDisplay == "" {
 		yearDisplay = "    "
 	}
-	s.WriteString(fmt.Sprintf("Enter year (e.g. 2024): %s\n", yearDisplay))
+	fmt.Fprintf(&s, "Enter year (e.g. 2024): %s\n", yearDisplay)
 
 	if m.errorMsg != "" {
-		s.WriteString(fmt.Sprintf("\nError: %s\n", m.errorMsg))
+		fmt.Fprintf(&s, "\nError: %s\n", m.errorMsg)
 	}
 
 	s.WriteString("\n")
@@ -173,25 +175,25 @@ func (m ReportModel) View() string {
 	if m.cursor == 0 {
 		cursor = "> "
 	}
-	s.WriteString(fmt.Sprintf("%s[Month]\n", cursor))
+	fmt.Fprintf(&s, "%s[Month]\n", cursor)
 
 	cursor = "  "
 	if m.cursor == 1 {
 		cursor = "> "
 	}
-	s.WriteString(fmt.Sprintf("%s[Year]\n", cursor))
+	fmt.Fprintf(&s, "%s[Year]\n", cursor)
 
 	cursor = "  "
 	if m.cursor == 2 {
 		cursor = "> "
 	}
-	s.WriteString(fmt.Sprintf("%s[View Report]\n", cursor))
+	fmt.Fprintf(&s, "%s[View Report]\n", cursor)
 
 	cursor = "  "
 	if m.cursor == 3 {
 		cursor = "> "
 	}
-	s.WriteString(fmt.Sprintf("%s[Back]\n", cursor))
+	fmt.Fprintf(&s, "%s[Back]\n", cursor)
 
 	s.WriteString("\nArrow keys navigate, Enter to select, Esc to go back\n")
 

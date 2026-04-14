@@ -7,7 +7,9 @@ run:
 linters:
   disable:
     - errcheck
-    - staticcheck
+    # consider re-enabling staticcheck later
 
-issues:
-  exclude-use-default: false
+output:
+  formats:
+    colored-line-number: {}
+    
