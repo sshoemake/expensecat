@@ -1647,3 +1647,397 @@ func TestAppModel_Update_NavigationMsg_ExclusionList(t *testing.T) {
 		t.Errorf("currentScreen = %d, want %d", newAppModel.currentScreen, ScreenExclusionList)
 	}
 }
+
+func TestAppModel_Update_NavigationMsg_ImportPath(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenImportPath})
+	newAppModel := newModel.(AppModel)
+	if newAppModel.currentScreen != ScreenImportPath {
+		t.Errorf("currentScreen = %d, want %d", newAppModel.currentScreen, ScreenImportPath)
+	}
+	if newAppModel.importPathModel.path != "~/Downloads/Expense-Files" {
+		t.Errorf("importPathModel.path = %q, want '~/Downloads/Expense-Files'", newAppModel.importPathModel.path)
+	}
+}
+
+func TestImportPathModel_Initialization(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+
+	if model.mode != ImportPathMenu {
+		t.Errorf("Initial mode = %d, want %d (ImportPathMenu)", model.mode, ImportPathMenu)
+	}
+	if model.cursor != 0 {
+		t.Errorf("Initial cursor = %d, want 0", model.cursor)
+	}
+	if model.cursorPos != 0 {
+		t.Errorf("Initial cursorPos = %d, want 0", model.cursorPos)
+	}
+	if model.path != "~/Downloads/Expense-Files" {
+		t.Errorf("Initial path = %q, want '~/Downloads/Expense-Files'", model.path)
+	}
+}
+
+func TestImportPathModel_View_MenuMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.path = "/custom/path"
+
+	view := model.View()
+
+	if !strings.Contains(view, "/custom/path") {
+		t.Error("View should show current path")
+	}
+	if !strings.Contains(view, "Edit Path") {
+		t.Error("View should show Edit Path option")
+	}
+	if !strings.Contains(view, "Back") {
+		t.Error("View should show Back option")
+	}
+}
+
+func TestImportPathModel_View_EditMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathEdit
+	model.inputValue = "/test/path"
+	model.cursorPos = 5
+
+	view := model.View()
+
+	if !strings.Contains(view, "Enter new path:") {
+		t.Error("View should show input prompt in edit mode")
+	}
+	if !strings.Contains(view, "|") {
+		t.Error("View should show cursor position indicator")
+	}
+}
+
+func TestImportPathModel_View_ErrorMsg(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.errorMsg = "Test error message"
+
+	view := model.View()
+
+	if !strings.Contains(view, "Test error message") {
+		t.Error("View should show error message")
+	}
+}
+
+func TestImportPathModel_View_SuccessMsg(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.successMsg = "Test success message"
+
+	view := model.View()
+
+	if !strings.Contains(view, "Test success message") {
+		t.Error("View should show success message")
+	}
+}
+
+func TestImportPathModel_CursorMovement(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+
+	if model.cursor != 0 {
+		t.Errorf("Initial cursor = %d, want 0", model.cursor)
+	}
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = newModel.(ImportPathModel)
+	if model.cursor != 1 {
+		t.Errorf("After down arrow, cursor = %d, want 1", model.cursor)
+	}
+
+	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	model = newModel.(ImportPathModel)
+	if model.cursor != 0 {
+		t.Errorf("After up arrow, cursor = %d, want 0", model.cursor)
+	}
+}
+
+func TestImportPathModel_UpAtTop(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.cursor = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	model = newModel.(ImportPathModel)
+
+	if model.cursor != 0 {
+		t.Error("Up at top should stay at 0")
+	}
+}
+
+func TestImportPathModel_DownAtBottom(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.cursor = 1
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = newModel.(ImportPathModel)
+
+	if model.cursor != 1 {
+		t.Error("Down at bottom should stay at 1")
+	}
+}
+
+func TestImportPathModel_EnterOnBack(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.cursor = 1
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newImportPathModel := newModel.(ImportPathModel)
+
+	if newImportPathModel.mode != ImportPathMenu {
+		t.Error("Mode should stay in menu")
+	}
+	if cmd == nil {
+		t.Error("Should return navigation cmd")
+	}
+}
+
+func TestImportPathModel_NavigationMsg_ResetsModel(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathEdit
+	model.inputValue = "test"
+	model.cursor = 1
+	model.cursorPos = 4
+
+	msg := NavigationMsg{Destination: ScreenSettings}
+	_, _ = model.Update(msg)
+
+	if model.mode != ImportPathEdit {
+		t.Error("Mode should stay unchanged (NavigationMsg handled by AppModel)")
+	}
+}
+
+func TestImportPathModel_EnterEditMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.path = "/initial/path"
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newImportPathModel := newModel.(ImportPathModel)
+
+	if newImportPathModel.mode != ImportPathEdit {
+		t.Errorf("Mode = %d, want %d (ImportPathEdit)", newImportPathModel.mode, ImportPathEdit)
+	}
+	if newImportPathModel.inputValue != "/initial/path" {
+		t.Errorf("inputValue = %q, want '/initial/path'", newImportPathModel.inputValue)
+	}
+	if newImportPathModel.cursorPos != len("/initial/path") {
+		t.Errorf("cursorPos = %d, want %d", newImportPathModel.cursorPos, len("/initial/path"))
+	}
+}
+
+func TestImportPathModel_LeftArrow_MovesCursor(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathEdit
+	model.inputValue = "test"
+	model.cursorPos = 4
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	model = newModel.(ImportPathModel)
+
+	if model.cursorPos != 3 {
+		t.Errorf("cursorPos = %d, want 3", model.cursorPos)
+	}
+}
+
+func TestImportPathModel_LeftArrow_AtStart(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathEdit
+	model.inputValue = "test"
+	model.cursorPos = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	model = newModel.(ImportPathModel)
+
+	if model.cursorPos != 0 {
+		t.Error("Left at start should stay at 0")
+	}
+}
+
+func TestImportPathModel_RightArrow_MovesCursor(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathEdit
+	model.inputValue = "test"
+	model.cursorPos = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = newModel.(ImportPathModel)
+
+	if model.cursorPos != 1 {
+		t.Errorf("cursorPos = %d, want 1", model.cursorPos)
+	}
+}
+
+func TestImportPathModel_RightArrow_AtEnd(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathEdit
+	model.inputValue = "test"
+	model.cursorPos = 4
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = newModel.(ImportPathModel)
+
+	if model.cursorPos != 4 {
+		t.Error("Right at end should stay at 4")
+	}
+}
+
+func TestImportPathModel_TypeInEditMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathEdit
+	model.inputValue = "test"
+	model.cursorPos = 2
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("X")})
+	model = newModel.(ImportPathModel)
+
+	if model.inputValue != "teXst" {
+		t.Errorf("inputValue = %q, want 'teXst'", model.inputValue)
+	}
+	if model.cursorPos != 3 {
+		t.Errorf("cursorPos = %d, want 3", model.cursorPos)
+	}
+}
+
+func TestImportPathModel_BackspaceInEditMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathEdit
+	model.inputValue = "test"
+	model.cursorPos = 3
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	model = newModel.(ImportPathModel)
+
+	if model.inputValue != "tet" {
+		t.Errorf("inputValue = %q, want 'tet'", model.inputValue)
+	}
+	if model.cursorPos != 2 {
+		t.Errorf("cursorPos = %d, want 2", model.cursorPos)
+	}
+}
+
+func TestImportPathModel_EscInEditMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathEdit
+	model.inputValue = "test"
+	model.cursorPos = 2
+	model.cursor = 1
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = newModel.(ImportPathModel)
+
+	if model.mode != ImportPathMenu {
+		t.Errorf("mode = %d, want %d (ImportPathMenu)", model.mode, ImportPathMenu)
+	}
+	if model.inputValue != "" {
+		t.Error("inputValue should be cleared")
+	}
+	if model.cursorPos != 0 {
+		t.Error("cursorPos should be reset")
+	}
+	if model.cursor != 0 {
+		t.Error("cursor should be reset")
+	}
+}
+
+func TestImportPathModel_EnterSavesPath(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathEdit
+	model.inputValue = "/new/path"
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newImportPathModel := newModel.(ImportPathModel)
+
+	if newImportPathModel.mode != ImportPathMenu {
+		t.Error("Should return to menu mode")
+	}
+	if newImportPathModel.inputValue != "" {
+		t.Error("inputValue should be cleared after save")
+	}
+}
+
+func TestImportPathModel_CtrlC_Quits(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newImportPathModel := newModel.(ImportPathModel)
+
+	if !newImportPathModel.quitting {
+		t.Error("quitting should be true")
+	}
+	if cmd == nil {
+		t.Error("Should return quit cmd")
+	}
+}
+
+func TestImportPathModel_IsQuitting(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+
+	if model.IsQuitting() {
+		t.Error("IsQuitting should be false initially")
+	}
+
+	model.quitting = true
+	if !model.IsQuitting() {
+		t.Error("IsQuitting should be true after quitting is set")
+	}
+}
+
+func TestSettingsModel_View_ContainsImportPath(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+
+	view := model.View()
+
+	if !strings.Contains(view, "Import Path") {
+		t.Error("Settings view should contain Import Path option")
+	}
+}
+
+func TestSettingsModel_NavigateToImportPath(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+	model.cursor = SettingsImportPath
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newSettingsModel := newModel.(SettingsModel)
+
+	if cmd == nil {
+		t.Error("Should return navigation cmd")
+	}
+	_ = newSettingsModel
+}
+
+func TestImportPathModel_EscInMenuMode_NavigatesBack(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewImportPathModel(store)
+	model.mode = ImportPathMenu
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	_ = newModel.(ImportPathModel)
+
+	if cmd == nil {
+		t.Error("Should return navigation cmd to settings")
+	}
+}
