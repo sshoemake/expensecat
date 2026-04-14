@@ -43,21 +43,22 @@ jobs:
           - os: linux
             arch: amd64
             ext: ""
+            os_name: linux
+
           - os: linux
             arch: arm64
             ext: ""
+            os_name: linux
+
           - os: darwin
             arch: amd64
             ext: ""
+            os_name: macos
+
           - os: darwin
             arch: arm64
             ext: ""
-          - os: windows
-            arch: amd64
-            ext: ".exe"
-          - os: windows
-            arch: arm64
-            ext: ".exe"
+            os_name: macos
 
     steps:
       - uses: actions/checkout@v4
@@ -70,18 +71,27 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version }}
         run: |
-          mkdir -p dist
+          set -e
+
+          BIN_NAME="expensecat"
+          OUTPUT_DIR="dist"
+          mkdir -p "$OUTPUT_DIR"
 
           GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
           go build \
             -ldflags="-X 'main.version=${VERSION}'" \
-            -o dist/expensecat-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} \
+            -o "$OUTPUT_DIR/$BIN_NAME" \
             .
+
+          tar -czf \
+            "expensecat-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch }}.tar.gz" \
+            -C "$OUTPUT_DIR" \
+            "$BIN_NAME"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.version }}
-          files: dist/*
+          files: dist/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
