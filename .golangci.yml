@@ -8,8 +8,4 @@ linters:
   disable:
     - errcheck
     # consider re-enabling staticcheck later
-
-output:
-  formats:
-    colored-line-number: {}
     
