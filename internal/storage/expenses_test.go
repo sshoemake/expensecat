@@ -197,6 +197,208 @@ func TestJsonStore_UpdateStartDate(t *testing.T) {
 	}
 }
 
+func TestJsonStore_GetExclusionList(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := SystemConfig{
+		StorageURL:  tmpDir,
+		StorageType: BackendTypeJSON,
+	}
+
+	store, err := InitializeJsonStore(config)
+	if err != nil {
+		t.Fatalf("InitializeJsonStore() error = %v", err)
+	}
+	defer store.Close()
+
+	list, err := store.GetExclusionList()
+	if err != nil {
+		t.Fatalf("GetExclusionList() error = %v", err)
+	}
+	if len(list) == 0 {
+		t.Error("exclusion list should not be empty by default")
+	}
+}
+
+func TestJsonStore_AddExclusion(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := SystemConfig{
+		StorageURL:  tmpDir,
+		StorageType: BackendTypeJSON,
+	}
+
+	store, err := InitializeJsonStore(config)
+	if err != nil {
+		t.Fatalf("InitializeJsonStore() error = %v", err)
+	}
+	defer store.Close()
+
+	err = store.AddExclusion("TEST PATTERN")
+	if err != nil {
+		t.Fatalf("AddExclusion() error = %v", err)
+	}
+
+	list, err := store.GetExclusionList()
+	if err != nil {
+		t.Fatalf("GetExclusionList() error = %v", err)
+	}
+	found := false
+	for _, p := range list {
+		if p == "TEST PATTERN" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("exclusion pattern should have been added")
+	}
+}
+
+func TestJsonStore_AddExclusion_Duplicate(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := SystemConfig{
+		StorageURL:  tmpDir,
+		StorageType: BackendTypeJSON,
+	}
+
+	store, err := InitializeJsonStore(config)
+	if err != nil {
+		t.Fatalf("InitializeJsonStore() error = %v", err)
+	}
+	defer store.Close()
+
+	err = store.AddExclusion("DUPLICATE")
+	if err != nil {
+		t.Fatalf("AddExclusion() error = %v", err)
+	}
+
+	err = store.AddExclusion("DUPLICATE")
+	if err == nil {
+		t.Error("AddExclusion() should return error for duplicate")
+	}
+}
+
+func TestJsonStore_AddExclusion_Empty(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := SystemConfig{
+		StorageURL:  tmpDir,
+		StorageType: BackendTypeJSON,
+	}
+
+	store, err := InitializeJsonStore(config)
+	if err != nil {
+		t.Fatalf("InitializeJsonStore() error = %v", err)
+	}
+	defer store.Close()
+
+	err = store.AddExclusion("   ")
+	if err == nil {
+		t.Error("AddExclusion() should return error for empty pattern")
+	}
+}
+
+func TestJsonStore_RemoveExclusion(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := SystemConfig{
+		StorageURL:  tmpDir,
+		StorageType: BackendTypeJSON,
+	}
+
+	store, err := InitializeJsonStore(config)
+	if err != nil {
+		t.Fatalf("InitializeJsonStore() error = %v", err)
+	}
+	defer store.Close()
+
+	err = store.AddExclusion("REMOVE ME")
+	if err != nil {
+		t.Fatalf("AddExclusion() error = %v", err)
+	}
+
+	err = store.RemoveExclusion("REMOVE ME")
+	if err != nil {
+		t.Fatalf("RemoveExclusion() error = %v", err)
+	}
+
+	list, err := store.GetExclusionList()
+	if err != nil {
+		t.Fatalf("GetExclusionList() error = %v", err)
+	}
+	for _, p := range list {
+		if p == "REMOVE ME" {
+			t.Error("exclusion pattern should have been removed")
+		}
+	}
+}
+
+func TestJsonStore_RemoveExclusion_NotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := SystemConfig{
+		StorageURL:  tmpDir,
+		StorageType: BackendTypeJSON,
+	}
+
+	store, err := InitializeJsonStore(config)
+	if err != nil {
+		t.Fatalf("InitializeJsonStore() error = %v", err)
+	}
+	defer store.Close()
+
+	err = store.RemoveExclusion("NONEXISTENT")
+	if err == nil {
+		t.Error("RemoveExclusion() should return error for non-existent pattern")
+	}
+}
+
+func TestJsonStore_UpdateExclusionList(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := SystemConfig{
+		StorageURL:  tmpDir,
+		StorageType: BackendTypeJSON,
+	}
+
+	store, err := InitializeJsonStore(config)
+	if err != nil {
+		t.Fatalf("InitializeJsonStore() error = %v", err)
+	}
+	defer store.Close()
+
+	newList := []string{"PATTERN1", "PATTERN2", "PATTERN3"}
+	err = store.UpdateExclusionList(newList)
+	if err != nil {
+		t.Fatalf("UpdateExclusionList() error = %v", err)
+	}
+
+	list, err := store.GetExclusionList()
+	if err != nil {
+		t.Fatalf("GetExclusionList() error = %v", err)
+	}
+	if len(list) != 3 {
+		t.Errorf("exclusion list length = %d, want 3", len(list))
+	}
+	if list[0] != "PATTERN1" || list[1] != "PATTERN2" || list[2] != "PATTERN3" {
+		t.Error("exclusion list contents do not match expected values")
+	}
+}
+
+func TestJsonStore_UpdateExclusionList_EmptyItems(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := SystemConfig{
+		StorageURL:  tmpDir,
+		StorageType: BackendTypeJSON,
+	}
+
+	store, err := InitializeJsonStore(config)
+	if err != nil {
+		t.Fatalf("InitializeJsonStore() error = %v", err)
+	}
+	defer store.Close()
+
+	err = store.UpdateExclusionList([]string{"VALID", "", "ALSO VALID"})
+	if err == nil {
+		t.Error("UpdateExclusionList() should return error for empty items")
+	}
+}
+
 func TestJsonStore_AddExpense(t *testing.T) {
 	tmpDir := t.TempDir()
 	config := SystemConfig{
@@ -782,14 +984,18 @@ type mockStoreForExpenses struct {
 	expenses []Expense
 }
 
-func (m *mockStoreForExpenses) Close() error                     { return nil }
-func (m *mockStoreForExpenses) GetConfig() (*Config, error)      { return &Config{}, nil }
-func (m *mockStoreForExpenses) GetCategories() ([]string, error) { return []string{}, nil }
-func (m *mockStoreForExpenses) UpdateCategories([]string) error  { return nil }
-func (m *mockStoreForExpenses) GetCurrency() (string, error)     { return "usd", nil }
-func (m *mockStoreForExpenses) UpdateCurrency(string) error      { return nil }
-func (m *mockStoreForExpenses) GetStartDate() (int, error)       { return 1, nil }
-func (m *mockStoreForExpenses) UpdateStartDate(int) error        { return nil }
+func (m *mockStoreForExpenses) Close() error                        { return nil }
+func (m *mockStoreForExpenses) GetConfig() (*Config, error)         { return &Config{}, nil }
+func (m *mockStoreForExpenses) GetCategories() ([]string, error)    { return []string{}, nil }
+func (m *mockStoreForExpenses) UpdateCategories([]string) error     { return nil }
+func (m *mockStoreForExpenses) GetCurrency() (string, error)        { return "usd", nil }
+func (m *mockStoreForExpenses) UpdateCurrency(string) error         { return nil }
+func (m *mockStoreForExpenses) GetStartDate() (int, error)          { return 1, nil }
+func (m *mockStoreForExpenses) UpdateStartDate(int) error           { return nil }
+func (m *mockStoreForExpenses) GetExclusionList() ([]string, error) { return []string{}, nil }
+func (m *mockStoreForExpenses) AddExclusion(string) error           { return nil }
+func (m *mockStoreForExpenses) RemoveExclusion(string) error        { return nil }
+func (m *mockStoreForExpenses) UpdateExclusionList([]string) error  { return nil }
 func (m *mockStoreForExpenses) GetRecurringExpenses() ([]RecurringExpense, error) {
 	return []RecurringExpense{}, nil
 }

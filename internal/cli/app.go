@@ -11,22 +11,26 @@ import (
 const defaultBasePath = "~/Downloads/Expenses-Mar-2026-Exports"
 
 type AppModel struct {
-	currentScreen int
-	store         storage.Storage
-	basePath      string
-	mainMenu      MainMenuModel
-	importModel   ImportModel
-	reportModel   ReportModel
+	currentScreen  int
+	store          storage.Storage
+	basePath       string
+	mainMenu       MainMenuModel
+	importModel    ImportModel
+	reportModel    ReportModel
+	settingsModel  SettingsModel
+	exclusionModel ExclusionListModel
 }
 
 func NewAppModel(store storage.Storage) AppModel {
 	return AppModel{
-		currentScreen: ScreenMainMenu,
-		store:         store,
-		basePath:      getBasePath(),
-		mainMenu:      NewMainMenuModel(),
-		importModel:   NewImportModel(store, getBasePath()),
-		reportModel:   NewReportModel(store),
+		currentScreen:  ScreenMainMenu,
+		store:          store,
+		basePath:       getBasePath(),
+		mainMenu:       NewMainMenuModel(),
+		importModel:    NewImportModel(store, getBasePath()),
+		reportModel:    NewReportModel(store),
+		settingsModel:  NewSettingsModel(store),
+		exclusionModel: NewExclusionListModel(store),
 	}
 }
 
@@ -51,6 +55,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.importModel = NewImportModel(m.store, m.basePath)
 		case ScreenReport:
 			m.reportModel = NewReportModel(m.store)
+		case ScreenSettings:
+			m.settingsModel = NewSettingsModel(m.store)
+		case ScreenExclusionList:
+			m.exclusionModel = NewExclusionListModel(m.store)
 		}
 		return m, nil
 
@@ -79,6 +87,22 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			return m, cmd
+
+		case ScreenSettings:
+			newModel, cmd := m.settingsModel.Update(msg)
+			m.settingsModel = newModel.(SettingsModel)
+			if m.settingsModel.IsQuitting() {
+				return m, tea.Quit
+			}
+			return m, cmd
+
+		case ScreenExclusionList:
+			newModel, cmd := m.exclusionModel.Update(msg)
+			m.exclusionModel = newModel.(ExclusionListModel)
+			if m.exclusionModel.IsQuitting() {
+				return m, tea.Quit
+			}
+			return m, cmd
 		}
 	}
 
@@ -92,6 +116,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScreenReport:
 		newModel, _ := m.reportModel.Update(msg)
 		m.reportModel = newModel.(ReportModel)
+	case ScreenSettings:
+		newModel, _ := m.settingsModel.Update(msg)
+		m.settingsModel = newModel.(SettingsModel)
+	case ScreenExclusionList:
+		newModel, _ := m.exclusionModel.Update(msg)
+		m.exclusionModel = newModel.(ExclusionListModel)
 	}
 
 	return m, nil
@@ -105,6 +135,10 @@ func (m AppModel) View() string {
 		return m.importModel.View()
 	case ScreenReport:
 		return m.reportModel.View()
+	case ScreenSettings:
+		return m.settingsModel.View()
+	case ScreenExclusionList:
+		return m.exclusionModel.View()
 	default:
 		return "Unknown screen\n"
 	}

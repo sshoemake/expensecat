@@ -8,4 +8,6 @@ const (
 	ScreenMainMenu = iota
 	ScreenImport
 	ScreenReport
+	ScreenSettings
+	ScreenExclusionList
 )

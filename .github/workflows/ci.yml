@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - name: Build
+        run: go build -o bin/expensecat
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - name: Test
+        run: go test -cover ./...
+      - name: Check coverage
+        run: |
+          # Check coverage for each package
+          COVERAGE=$(go test -cover ./... 2>&1)
+          echo "$COVERAGE"
+          
+          # Extract coverage percentages and verify > 80%
+          echo "$COVERAGE" | grep -E "ok\s+expensecat/(internal/api|internal/cli|internal/storage)" | while read line; do
+            pkg=$(echo "$line" | awk '{print $2}')
+            coverage=$(echo "$line" | grep -oE '[0-9]+\.[0-9]+%' | tail -1)
+            
+            if [ -n "$coverage" ]; then
+              coverage_num=${coverage%\%}
+              if (( $(echo "$coverage_num < 80" | bc -l) )); then
+                echo "FAIL: $pkg coverage is $coverage (below 80%)"
+                exit 1
+              fi
+              echo "PASS: $pkg coverage is $coverage"
+            fi
+          done
+
+  lint:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - name: Run go vet
+        run: go vet ./...
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.5
+      - name: Run golangci-lint
+        run: golangci-lint run

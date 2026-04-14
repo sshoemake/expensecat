@@ -197,6 +197,76 @@ func (s *jsonStore) UpdateStartDate(startDate int) error {
 	return s.writeConfigFile(s.configPath, data)
 }
 
+// Exclusion List
+
+func (s *jsonStore) GetExclusionList() ([]string, error) {
+	config, err := s.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	return config.ExclusionList, nil
+}
+
+func (s *jsonStore) AddExclusion(pattern string) error {
+	sanitized := SanitizeString(pattern)
+	if sanitized == "" {
+		return fmt.Errorf("exclusion pattern cannot be empty")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := s.readConfigFile(s.configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %v", err)
+	}
+	for _, p := range data.ExclusionList {
+		if p == sanitized {
+			return fmt.Errorf("exclusion pattern '%s' already exists", sanitized)
+		}
+	}
+	data.ExclusionList = append(data.ExclusionList, sanitized)
+	return s.writeConfigFile(s.configPath, data)
+}
+
+func (s *jsonStore) RemoveExclusion(pattern string) error {
+	sanitized := SanitizeString(pattern)
+	if sanitized == "" {
+		return fmt.Errorf("exclusion pattern cannot be empty")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := s.readConfigFile(s.configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %v", err)
+	}
+	originalLen := len(data.ExclusionList)
+	data.ExclusionList = slices.DeleteFunc(data.ExclusionList, func(p string) bool {
+		return p == sanitized
+	})
+	if len(data.ExclusionList) == originalLen {
+		return fmt.Errorf("exclusion pattern '%s' not found", sanitized)
+	}
+	return s.writeConfigFile(s.configPath, data)
+}
+
+func (s *jsonStore) UpdateExclusionList(list []string) error {
+	var sanitizedList []string
+	for _, p := range list {
+		sanitized := SanitizeString(p)
+		if sanitized == "" {
+			return fmt.Errorf("exclusion pattern cannot be empty")
+		}
+		sanitizedList = append(sanitizedList, sanitized)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := s.readConfigFile(s.configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %v", err)
+	}
+	data.ExclusionList = sanitizedList
+	return s.writeConfigFile(s.configPath, data)
+}
+
 func (s *jsonStore) GetRecurringExpenses() ([]RecurringExpense, error) {
 	config, err := s.GetConfig()
 	if err != nil {

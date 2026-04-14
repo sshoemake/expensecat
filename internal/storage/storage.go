@@ -23,6 +23,12 @@ type Storage interface {
 	GetStartDate() (int, error)
 	UpdateStartDate(startDate int) error
 
+	// Exclusion List
+	GetExclusionList() ([]string, error)
+	AddExclusion(pattern string) error
+	RemoveExclusion(pattern string) error
+	UpdateExclusionList(list []string) error
+
 	// Recurring Expenses
 	GetRecurringExpenses() ([]RecurringExpense, error)
 	GetRecurringExpense(id string) (RecurringExpense, error)

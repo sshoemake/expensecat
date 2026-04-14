@@ -21,6 +21,10 @@ func (m *mockStoreForCLI) GetCurrency() (string, error)        { return "usd", n
 func (m *mockStoreForCLI) UpdateCurrency(string) error         { return nil }
 func (m *mockStoreForCLI) GetStartDate() (int, error)          { return 1, nil }
 func (m *mockStoreForCLI) UpdateStartDate(int) error           { return nil }
+func (m *mockStoreForCLI) GetExclusionList() ([]string, error) { return []string{}, nil }
+func (m *mockStoreForCLI) AddExclusion(string) error           { return nil }
+func (m *mockStoreForCLI) RemoveExclusion(string) error        { return nil }
+func (m *mockStoreForCLI) UpdateExclusionList([]string) error  { return nil }
 func (m *mockStoreForCLI) GetRecurringExpenses() ([]storage.RecurringExpense, error) {
 	return []storage.RecurringExpense{}, nil
 }
@@ -45,8 +49,8 @@ func (m *mockStoreForCLI) UpdateExpense(string, storage.Expense) error { return 
 func TestMainMenuModel_Initialization(t *testing.T) {
 	model := NewMainMenuModel()
 
-	if len(model.choices) != 3 {
-		t.Errorf("Expected 3 choices, got %d", len(model.choices))
+	if len(model.choices) != 4 {
+		t.Errorf("Expected 4 choices, got %d", len(model.choices))
 	}
 	if model.cursor != 0 {
 		t.Errorf("Expected cursor to be 0, got %d", model.cursor)
@@ -57,8 +61,11 @@ func TestMainMenuModel_Initialization(t *testing.T) {
 	if model.choices[1] != "View Monthly Totals" {
 		t.Errorf("Expected second choice to be 'View Monthly Totals', got %s", model.choices[1])
 	}
-	if model.choices[2] != "Quit" {
-		t.Errorf("Expected third choice to be 'Quit', got %s", model.choices[2])
+	if model.choices[2] != "Settings" {
+		t.Errorf("Expected third choice to be 'Settings', got %s", model.choices[2])
+	}
+	if model.choices[3] != "Quit" {
+		t.Errorf("Expected fourth choice to be 'Quit', got %s", model.choices[3])
 	}
 }
 
@@ -165,12 +172,12 @@ func TestMainMenuModel_Navigation(t *testing.T) {
 
 func TestMainMenuModel_AtBottom(t *testing.T) {
 	model := NewMainMenuModel()
-	model.cursor = 2
+	model.cursor = 3
 
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = newModel.(MainMenuModel)
-	if model.cursor != 2 {
-		t.Errorf("At bottom, cursor should stay at 2, got %d", model.cursor)
+	if model.cursor != 3 {
+		t.Errorf("At bottom, cursor should stay at 3, got %d", model.cursor)
 	}
 }
 
@@ -403,7 +410,7 @@ func TestMainMenuModel_EnterOnReport(t *testing.T) {
 
 func TestMainMenuModel_EnterOnQuit(t *testing.T) {
 	model := NewMainMenuModel()
-	model.cursor = 2
+	model.cursor = 3
 	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	newMainMenu := newModel.(MainMenuModel)
 	if cmd == nil {
@@ -1120,10 +1127,532 @@ func TestMainMenuModel_TickCmd_ReturnsCommand(t *testing.T) {
 	}
 }
 
+func TestSettingsModel_Initialization(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+
+	if model.cursor != 0 {
+		t.Errorf("Expected cursor to be 0, got %d", model.cursor)
+	}
+	if model.quitting {
+		t.Error("quitting should be false initially")
+	}
+}
+
+func TestSettingsModel_CursorMovement(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+
+	if model.cursor != 0 {
+		t.Errorf("Initial cursor = %d, want 0", model.cursor)
+	}
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = newModel.(SettingsModel)
+	if model.cursor != 1 {
+		t.Errorf("After down arrow, cursor = %d, want 1", model.cursor)
+	}
+
+	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = newModel.(SettingsModel)
+	if model.cursor != 1 {
+		t.Errorf("At bottom, cursor should stay at 1, got %d", model.cursor)
+	}
+
+	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	model = newModel.(SettingsModel)
+	if model.cursor != 0 {
+		t.Errorf("After up arrow, cursor = %d, want 0", model.cursor)
+	}
+}
+
+func TestSettingsModel_View(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+	view := model.View()
+
+	if !strings.Contains(view, "Settings") {
+		t.Error("View() should contain Settings")
+	}
+	if !strings.Contains(view, "Exclusion List") {
+		t.Error("View() should contain Exclusion List")
+	}
+	if !strings.Contains(view, "Back") {
+		t.Error("View() should contain Back")
+	}
+}
+
+func TestExclusionListModel_Initialization(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+
+	if model.cursor != 0 {
+		t.Errorf("Expected cursor to be 0, got %d", model.cursor)
+	}
+	if model.mode != 0 {
+		t.Errorf("Expected mode to be 0, got %d", model.mode)
+	}
+	if model.inputValue != "" {
+		t.Errorf("Expected inputValue to be empty, got %s", model.inputValue)
+	}
+	if model.quitting {
+		t.Error("quitting should be false initially")
+	}
+}
+
+func TestExclusionListModel_View(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	view := model.View()
+
+	if !strings.Contains(view, "Exclusion List") {
+		t.Error("View() should contain Exclusion List")
+	}
+	if !strings.Contains(view, "Add Pattern") {
+		t.Error("View() should contain Add Pattern")
+	}
+	if !strings.Contains(view, "Remove Pattern") {
+		t.Error("View() should contain Remove Pattern")
+	}
+}
+
+func TestExclusionListModel_AddMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+
+	model.mode = ExclusionListAdd
+	model.inputValue = "TEST"
+	view := model.View()
+
+	if !strings.Contains(view, "Enter new pattern:") {
+		t.Error("View() should show input prompt in add mode")
+	}
+	if !strings.Contains(view, "TEST") {
+		t.Error("View() should show entered pattern")
+	}
+}
+
+func TestExclusionListModel_RemoveMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+
+	model.mode = ExclusionListRemove
+	model.patterns = []string{"PATTERN1", "PATTERN2"}
+	view := model.View()
+
+	if !strings.Contains(view, "Select pattern to remove:") {
+		t.Error("View() should show removal prompt in remove mode")
+	}
+	if !strings.Contains(view, "PATTERN1") {
+		t.Error("View() should show patterns")
+	}
+}
+
+func TestSettingsModel_NavigationToExclusionList(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+	model.cursor = 0
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_ = newModel.(SettingsModel)
+
+	if cmd == nil {
+		t.Error("Enter on Exclusion List should return navigation command")
+	}
+}
+
+func TestExclusionListModel_EscInAddMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListAdd
+	model.inputValue = "TEST"
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.mode != ExclusionListMenu {
+		t.Errorf("Esc should return to menu mode, got %d", newExclusionModel.mode)
+	}
+}
+
+func TestExclusionListModel_EscInMenuMode_NavigatesBack(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	_ = newModel.(ExclusionListModel)
+
+	if cmd == nil {
+		t.Error("Esc in menu mode should return navigation command to Settings")
+	}
+}
+
+func TestExclusionListModel_UpAtTop(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.cursor = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.cursor != 0 {
+		t.Error("Cursor should stay at 0 when at top")
+	}
+}
+
+func TestExclusionListModel_DownAtBottom(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.cursor = 2
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.cursor != 2 {
+		t.Error("Cursor should stay at 2 when at bottom")
+	}
+}
+
+func TestExclusionListModel_EnterOnBack(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.cursor = 2
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_ = newModel.(ExclusionListModel)
+
+	if cmd == nil {
+		t.Error("Enter on Back should return navigation command")
+	}
+}
+
+func TestExclusionListModel_EnterInAddMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListAdd
+	model.inputValue = "NEW PATTERN"
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.mode != ExclusionListMenu {
+		t.Error("Enter in add mode should save and return to menu")
+	}
+}
+
+func TestExclusionListModel_TypeInAddMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListAdd
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.inputValue == "" {
+		t.Error("Typing in add mode should add characters")
+	}
+}
+
+func TestSettingsModel_EnterOnBack(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+	model.cursor = 1
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_ = newModel.(SettingsModel)
+
+	if cmd == nil {
+		t.Error("Enter on Back should return navigation command")
+	}
+}
+
+func TestSettingsModel_NavigationMsg_ResetsModel(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.settingsModel.cursor = 1
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenSettings})
+	newAppModel := newModel.(AppModel)
+
+	if newAppModel.settingsModel.cursor != 0 {
+		t.Error("Navigation to Settings should reset cursor")
+	}
+}
+
+func TestExclusionListModel_NavigationMsg_ResetsModel(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.exclusionModel.mode = ExclusionListRemove
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenExclusionList})
+	newAppModel := newModel.(AppModel)
+
+	if newAppModel.exclusionModel.mode != ExclusionListMenu {
+		t.Error("Navigation to ExclusionList should reset mode")
+	}
+}
+
+func TestExclusionListModel_RemoveSelectsPattern(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListRemove
+	model.patterns = []string{"TEST1", "TEST2"}
+	model.cursor = 1
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.mode != ExclusionListMenu {
+		t.Error("Enter on pattern should remove and return to menu")
+	}
+}
+
+func TestExclusionListModel_CtrlC(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if cmd == nil {
+		t.Error("Ctrl+C should return quit command")
+	}
+	if !newExclusionModel.quitting {
+		t.Error("quitting should be true after Ctrl+C")
+	}
+}
+
+func TestExclusionListModel_EscInRemoveMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListRemove
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.mode != ExclusionListMenu {
+		t.Error("Esc in remove mode should return to menu")
+	}
+}
+
+func TestExclusionListModel_UpInRemoveMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListRemove
+	model.patterns = []string{"TEST1", "TEST2"}
+	model.cursor = 1
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.cursor != 0 {
+		t.Error("Up should move cursor up in remove mode")
+	}
+}
+
+func TestExclusionListModel_DownInRemoveMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListRemove
+	model.patterns = []string{"TEST1", "TEST2"}
+	model.cursor = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.cursor != 1 {
+		t.Error("Down should move cursor down in remove mode")
+	}
+}
+
+func TestExclusionListModel_DownAtEndOfRemoveMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListRemove
+	model.patterns = []string{"TEST1"}
+	model.cursor = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.cursor != 1 {
+		t.Error("Down should move to Back option in remove mode with 1 pattern")
+	}
+}
+
+func TestExclusionListModel_EnterOnBackInRemoveMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListRemove
+	model.patterns = []string{"TEST1"}
+	model.cursor = 2
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.mode != ExclusionListMenu {
+		t.Error("Enter on Back in remove mode should return to menu")
+	}
+}
+
+func TestExclusionListModel_LoadPatterns_Error(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+
+	model.loadPatterns()
+
+	if model.errorMsg != "" {
+		t.Error("Should not have error with mock store")
+	}
+}
+
+func TestExclusionListModel_SuccessMessage(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.successMsg = "Test success"
+
+	view := model.View()
+
+	if !strings.Contains(view, "Test success") {
+		t.Error("View() should show success message")
+	}
+}
+
+func TestSettingsModel_CtrlC(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newSettingsModel := newModel.(SettingsModel)
+
+	if cmd == nil {
+		t.Error("Ctrl+C should return quit command")
+	}
+	if !newSettingsModel.quitting {
+		t.Error("quitting should be true after Ctrl+C")
+	}
+}
+
+func TestExclusionListModel_SelectBackInRemoveMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListRemove
+	model.patterns = []string{}
+	model.cursor = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.cursor != 0 {
+		t.Error("Down should stay at 0 when no patterns exist")
+	}
+}
+
+func TestExclusionListModel_UpAtTopInRemoveMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListRemove
+	model.patterns = []string{"TEST1", "TEST2"}
+	model.cursor = 0
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.cursor != 0 {
+		t.Error("Up should stay at 0 when at top in remove mode")
+	}
+}
+
+func TestExclusionListModel_DownStaysAtMaxInRemoveMode(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+	model.mode = ExclusionListRemove
+	model.patterns = []string{"TEST1", "TEST2"}
+	model.cursor = 2
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newExclusionModel := newModel.(ExclusionListModel)
+
+	if newExclusionModel.cursor != 2 {
+		t.Error("Down should stay at max when at bottom in remove mode")
+	}
+}
+
+func TestSettingsModel_ViewChoices(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+	view := model.View()
+
+	if !strings.Contains(view, "Exclusion List") {
+		t.Error("View() should contain Exclusion List")
+	}
+	if !strings.Contains(view, "Back") {
+		t.Error("View() should contain Back")
+	}
+}
+
+func TestSettingsModel_CursorAtTop(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	newSettingsModel := newModel.(SettingsModel)
+
+	if newSettingsModel.cursor != 0 {
+		t.Error("Up at top should stay at 0")
+	}
+}
+
+func TestAppModel_SettingsScreenView(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	model.currentScreen = ScreenSettings
+	view := model.View()
+
+	if !strings.Contains(view, "Settings") {
+		t.Error("View() should show Settings when on Settings screen")
+	}
+}
+
+func TestAppModel_ExclusionListScreenView(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	model.currentScreen = ScreenExclusionList
+	view := model.View()
+
+	if !strings.Contains(view, "Exclusion List") {
+		t.Error("View() should show Exclusion List when on ExclusionList screen")
+	}
+}
+
 func TestImportModel_LoadFiles_SkipsDirs(t *testing.T) {
 	store := &mockStoreForCLI{}
 	model := NewImportModel(store, ".")
 	if model.files == nil {
 		t.Error("files should be initialized")
+	}
+}
+
+func TestAppModel_Update_NavigationMsg_Settings(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenSettings})
+	newAppModel := newModel.(AppModel)
+	if newAppModel.currentScreen != ScreenSettings {
+		t.Errorf("currentScreen = %d, want %d", newAppModel.currentScreen, ScreenSettings)
+	}
+}
+
+func TestAppModel_Update_NavigationMsg_ExclusionList(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenExclusionList})
+	newAppModel := newModel.(AppModel)
+	if newAppModel.currentScreen != ScreenExclusionList {
+		t.Errorf("currentScreen = %d, want %d", newAppModel.currentScreen, ScreenExclusionList)
 	}
 }

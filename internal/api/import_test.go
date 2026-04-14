@@ -47,6 +47,22 @@ func (m *mockStore) UpdateStartDate(startDate int) error {
 	return nil
 }
 
+func (m *mockStore) GetExclusionList() ([]string, error) {
+	return []string{}, nil
+}
+
+func (m *mockStore) AddExclusion(pattern string) error {
+	return nil
+}
+
+func (m *mockStore) RemoveExclusion(pattern string) error {
+	return nil
+}
+
+func (m *mockStore) UpdateExclusionList(list []string) error {
+	return nil
+}
+
 func (m *mockStore) GetRecurringExpenses() ([]storage.RecurringExpense, error) {
 	return []storage.RecurringExpense{}, nil
 }

@@ -22,6 +22,7 @@ go mod tidy           # Clean up dependencies
 ```bash
 go fmt ./...          # Format code (standard go fmt)
 go vet ./...          # Run Go vet for static analysis
+golangci-lint run    # Run comprehensive linting (optional but recommended)
 ```
 
 ### Testing
@@ -223,11 +224,20 @@ func TestExpense_Validate(t *testing.T) {
 }
 ```
 
+### Coverage Requirements
+
+- **Target**: Maintain >80% test coverage across all packages
+- **New functionality**: When adding new features or methods, write unit tests to cover them
+- **Check coverage**: Run `go test -cover ./...` to verify coverage before completing changes
+- **If coverage drops**: Add tests to restore >80% coverage before finishing the task
+```
+
 ## General Guidelines
 
-1. Always run `go fmt` and `go vet` before completing changes
+1. Always run `go fmt`, `go vet`, and optionally `golangci-lint` before completing changes
 2. Add tests for new functionality
 3. Use descriptive commit messages
 4. Follow existing patterns in the codebase
 5. Use `SanitizeString()` for user input to prevent injection issues
 6. Return errors rather than panicking except in fatal initialization scenarios
+7. Run `go build -o bin/expensecat` before completing changes to ensure the executable is up to date
