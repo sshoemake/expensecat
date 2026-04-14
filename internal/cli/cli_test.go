@@ -8,6 +8,7 @@ import (
 
 	"expensecat/internal/api"
 	"expensecat/internal/storage"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -25,6 +26,8 @@ func (m *mockStoreForCLI) GetExclusionList() ([]string, error) { return []string
 func (m *mockStoreForCLI) AddExclusion(string) error           { return nil }
 func (m *mockStoreForCLI) RemoveExclusion(string) error        { return nil }
 func (m *mockStoreForCLI) UpdateExclusionList([]string) error  { return nil }
+func (m *mockStoreForCLI) GetImportPath() (string, error)      { return "~/Downloads/Expense-Files", nil }
+func (m *mockStoreForCLI) UpdateImportPath(string) error       { return nil }
 func (m *mockStoreForCLI) GetRecurringExpenses() ([]storage.RecurringExpense, error) {
 	return []storage.RecurringExpense{}, nil
 }
@@ -243,25 +246,39 @@ func TestReportModel_Navigation(t *testing.T) {
 	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = newModel.(ReportModel)
 	if model.cursor != 2 {
-		t.Errorf("After second down arrow, cursor = %d, want 2", model.cursor)
+		t.Errorf("At bottom, cursor should stay at 2, got %d", model.cursor)
+	}
+}
+
+func TestSettingsModel_CursorMovement(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewSettingsModel(store)
+
+	if model.cursor != 0 {
+		t.Errorf("Initial cursor = %d, want 0", model.cursor)
+	}
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = newModel.(SettingsModel)
+	if model.cursor != 1 {
+		t.Errorf("After first down arrow, cursor = %d, want 1", model.cursor)
 	}
 
 	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
-	model = newModel.(ReportModel)
-	if model.cursor != 3 {
-		t.Errorf("After third down arrow, cursor = %d, want 3", model.cursor)
-	}
-
-	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
-	model = newModel.(ReportModel)
-	if model.cursor != 3 {
-		t.Errorf("At bottom, cursor should stay at 3, got %d", model.cursor)
+	model = newModel.(SettingsModel)
+	if model.cursor != 2 {
+		t.Errorf("At bottom, cursor should stay at 2, got %d", model.cursor)
 	}
 
 	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
-	model = newModel.(ReportModel)
-	if model.cursor != 2 {
-		t.Errorf("After up arrow, cursor = %d, want 2", model.cursor)
+	model = newModel.(SettingsModel)
+	if model.cursor != 1 {
+		t.Errorf("After up arrow, cursor = %d, want 1", model.cursor)
+	}
+	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	model = newModel.(SettingsModel)
+	if model.cursor != 0 {
+		t.Errorf("After second up arrow, cursor = %d, want 0", model.cursor)
 	}
 }
 
@@ -861,17 +878,18 @@ func TestGetBasePath_WithEnv(t *testing.T) {
 	os.Setenv("EXPENSE_BASE_PATH", "/custom/path")
 	defer os.Unsetenv("EXPENSE_BASE_PATH")
 
-	result := getBasePath()
+	result := getBasePath(nil)
 	if result != "/custom/path" {
 		t.Errorf("getBasePath() = %q, want '/custom/path'", result)
 	}
 }
 
-func TestGetBasePath_Default(t *testing.T) {
+func TestGetBasePath_FromConfig(t *testing.T) {
 	os.Unsetenv("EXPENSE_BASE_PATH")
-	result := getBasePath()
-	if result != defaultBasePath {
-		t.Errorf("getBasePath() = %q, want default %q", result, defaultBasePath)
+	store := &mockStoreForCLI{}
+	result := getBasePath(store)
+	if result != "~/Downloads/Expense-Files" {
+		t.Errorf("getBasePath() = %q, want '~/Downloads/Expense-Files'", result)
 	}
 }
 
@@ -1136,33 +1154,6 @@ func TestSettingsModel_Initialization(t *testing.T) {
 	}
 	if model.quitting {
 		t.Error("quitting should be false initially")
-	}
-}
-
-func TestSettingsModel_CursorMovement(t *testing.T) {
-	store := &mockStoreForCLI{}
-	model := NewSettingsModel(store)
-
-	if model.cursor != 0 {
-		t.Errorf("Initial cursor = %d, want 0", model.cursor)
-	}
-
-	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
-	model = newModel.(SettingsModel)
-	if model.cursor != 1 {
-		t.Errorf("After down arrow, cursor = %d, want 1", model.cursor)
-	}
-
-	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
-	model = newModel.(SettingsModel)
-	if model.cursor != 1 {
-		t.Errorf("At bottom, cursor should stay at 1, got %d", model.cursor)
-	}
-
-	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
-	model = newModel.(SettingsModel)
-	if model.cursor != 0 {
-		t.Errorf("After up arrow, cursor = %d, want 0", model.cursor)
 	}
 }
 

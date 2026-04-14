@@ -63,6 +63,14 @@ func (m *mockStore) UpdateExclusionList(list []string) error {
 	return nil
 }
 
+func (m *mockStore) GetImportPath() (string, error) {
+	return "~/Downloads/Expense-Files", nil
+}
+
+func (m *mockStore) UpdateImportPath(path string) error {
+	return nil
+}
+
 func (m *mockStore) GetRecurringExpenses() ([]storage.RecurringExpense, error) {
 	return []storage.RecurringExpense{}, nil
 }

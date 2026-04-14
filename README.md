@@ -61,7 +61,7 @@ The Settings menu provides configuration options for the application:
 | `STORAGE_USER` | Database username | (empty) |
 | `STORAGE_PASS` | Database password | (empty) |
 | `STORAGE_SSL` | SSL mode (`disable`) | `disable` |
-| `EXPENSE_BASE_PATH` | Import directory | `~/Downloads/Expenses-Mar-2026-Exports` |
+| `EXPENSE_BASE_PATH` | Import directory | `~/Downloads/Expense-Files` |
 
 ## Technology
 
@@ -95,6 +95,7 @@ go fmt ./...
 - **Auto-determine Categories** - Automatically categorize expenses based on transaction patterns
 - **Modify Categories** - Add, edit, or remove expense categories
 - **Modify Expenses** - Edit or delete imported expenses
+- **Re-occuring Expenses cross-check** - List and report monthly expenses and if they have been paid or not
 
 ## License
 

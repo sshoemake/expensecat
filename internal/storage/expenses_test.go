@@ -996,6 +996,10 @@ func (m *mockStoreForExpenses) GetExclusionList() ([]string, error) { return []s
 func (m *mockStoreForExpenses) AddExclusion(string) error           { return nil }
 func (m *mockStoreForExpenses) RemoveExclusion(string) error        { return nil }
 func (m *mockStoreForExpenses) UpdateExclusionList([]string) error  { return nil }
+func (m *mockStoreForExpenses) GetImportPath() (string, error) {
+	return "~/Downloads/Expense-Files", nil
+}
+func (m *mockStoreForExpenses) UpdateImportPath(string) error { return nil }
 func (m *mockStoreForExpenses) GetRecurringExpenses() ([]RecurringExpense, error) {
 	return []RecurringExpense{}, nil
 }

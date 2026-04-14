@@ -13,6 +13,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const defaultImportPath = "~/Downloads/Expense-Files"
+
 // JSONStore implementats Storage interface - for JSON file storage
 type jsonStore struct {
 	configPath string
@@ -264,6 +266,30 @@ func (s *jsonStore) UpdateExclusionList(list []string) error {
 		return fmt.Errorf("failed to read config file: %v", err)
 	}
 	data.ExclusionList = sanitizedList
+	return s.writeConfigFile(s.configPath, data)
+}
+
+// Import Path
+
+func (s *jsonStore) GetImportPath() (string, error) {
+	config, err := s.GetConfig()
+	if err != nil {
+		return "", err
+	}
+	if config.ImportPath == "" {
+		return defaultImportPath, nil
+	}
+	return config.ImportPath, nil
+}
+
+func (s *jsonStore) UpdateImportPath(path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := s.readConfigFile(s.configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %v", err)
+	}
+	data.ImportPath = path
 	return s.writeConfigFile(s.configPath, data)
 }
 

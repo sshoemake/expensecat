@@ -10,4 +10,5 @@ const (
 	ScreenReport
 	ScreenSettings
 	ScreenExclusionList
+	ScreenImportPath
 )

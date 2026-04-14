@@ -29,6 +29,10 @@ type Storage interface {
 	RemoveExclusion(pattern string) error
 	UpdateExclusionList(list []string) error
 
+	// Import Path
+	GetImportPath() (string, error)
+	UpdateImportPath(path string) error
+
 	// Recurring Expenses
 	GetRecurringExpenses() ([]RecurringExpense, error)
 	GetRecurringExpense(id string) (RecurringExpense, error)
@@ -57,7 +61,7 @@ type Config struct {
 	StartDate         int                `json:"startDate"`
 	RecurringExpenses []RecurringExpense `json:"recurringExpenses"`
 	ExclusionList     []string           `json:"exclusionList"`
-	// Tags              []string           `json:"tags"`
+	ImportPath        string             `json:"importPath"`
 }
 
 type RecurringExpense struct {
@@ -105,9 +109,9 @@ func (c *Config) SetBaseConfig() {
 	c.Categories = defaultCategories
 	c.Currency = "usd"
 	c.StartDate = 1
-	// c.Tags = []string{}
 	c.RecurringExpenses = []RecurringExpense{}
 	c.ExclusionList = []string{"ACH DEPOSIT"}
+	c.ImportPath = "~/Downloads/Expense-Files"
 }
 
 func (c *SystemConfig) SetStorageConfig() {
