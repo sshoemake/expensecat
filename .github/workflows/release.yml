@@ -73,7 +73,7 @@ jobs:
         run: |
           set -e
 
-          BIN_NAME="dist/expensecat-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
+          BIN_NAME="expensecat-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
           OUTPUT_DIR="dist"
           mkdir -p "$OUTPUT_DIR"
 
