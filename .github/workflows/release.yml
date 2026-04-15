@@ -73,14 +73,14 @@ jobs:
         run: |
           set -e
 
-          BIN_NAME="expensecat"
+          BIN_NAME="dist/expensecat-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
           OUTPUT_DIR="dist"
           mkdir -p "$OUTPUT_DIR"
 
           GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
           go build \
             -ldflags="-X 'main.version=${VERSION}'" \
-            -o "$OUTPUT_DIR/$BIN_NAME" \
+            -o dist/expensecat-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} \
             .
 
           tar -czf \
