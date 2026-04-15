@@ -71,27 +71,20 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version }}
         run: |
-          set -e
-
-          BIN_NAME="expensecat-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
-          OUTPUT_DIR="dist"
-          mkdir -p "$OUTPUT_DIR"
-
           GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
           go build \
-            -ldflags="-X 'main.version=${VERSION}'" \
-            -o dist/expensecat-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} \
+            -ldflags="-X 'main.version=${{ env.VERSION }}'" \
+            -o "expensecat-${{ env.VERSION }}-${{ matrix.os_name }}-${{ matrix.arch }}${{ matrix.ext }}" \
             .
 
           tar -czf \
-            "expensecat-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch }}.tar.gz" \
-            -C "$OUTPUT_DIR" \
-            "$BIN_NAME"
+            "expensecat-${{ env.VERSION }}-${{ matrix.os_name }}-${{ matrix.arch }}.tar.gz" \
+            "expensecat-${{ env.VERSION }}-${{ matrix.os_name }}-${{ matrix.arch }}${{ matrix.ext }}"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.version }}
-          files: dist/*.tar.gz
+          files: "*.tar.gz"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
