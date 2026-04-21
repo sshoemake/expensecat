@@ -15,12 +15,21 @@ import (
 
 const defaultImportPath = "~/Downloads/Expense-Files"
 
+func getStorageLogger() *log.Logger {
+	logFile, err := os.OpenFile("data/storage.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return log.Default()
+	}
+	return log.New(logFile, "", log.LstdFlags)
+}
+
 // JSONStore implementats Storage interface - for JSON file storage
 type jsonStore struct {
 	configPath string
 	filePath   string
 	mu         sync.RWMutex
 	defaults   map[string]string // allows reusing defaults without querying for config
+	logger     *log.Logger
 }
 
 type expensesFileData struct {
@@ -44,9 +53,9 @@ func InitializeJsonStore(baseConfig SystemConfig) (*jsonStore, error) {
 		if err := os.WriteFile(filePath, data, 0644); err != nil {
 			return nil, fmt.Errorf("failed to create storage file: %v", err)
 		}
-		log.Println("Created expense storage file")
+		getStorageLogger().Println("Created expense storage file")
 	} else {
-		log.Println("Found existing expense storage file")
+		getStorageLogger().Println("Found existing expense storage file")
 	}
 
 	// create config file if it doesn't exist
@@ -60,15 +69,16 @@ func InitializeJsonStore(baseConfig SystemConfig) (*jsonStore, error) {
 		if err := os.WriteFile(configPath, data, 0644); err != nil {
 			return nil, fmt.Errorf("failed to create config file: %v", err)
 		}
-		log.Println("Created expense storage config")
+		getStorageLogger().Println("Created expense storage config")
 	} else {
-		log.Println("Found existing expense storage config")
+		getStorageLogger().Println("Found existing expense storage config")
 	}
 
 	return &jsonStore{
 		configPath: configPath,
 		filePath:   filePath,
 		defaults:   map[string]string{},
+		logger:     getStorageLogger(),
 	}, nil
 }
 
@@ -83,7 +93,7 @@ func (s *jsonStore) readExpensesFile(path string) (*expensesFileData, error) {
 	if err := json.Unmarshal(content, &data); err != nil {
 		return nil, err
 	}
-	log.Println("Read expenses file")
+	s.logger.Println("Read expenses file")
 	return &data, nil
 }
 
@@ -92,7 +102,7 @@ func (s *jsonStore) writeExpensesFile(path string, data *expensesFileData) error
 	if err != nil {
 		return err
 	}
-	log.Println("Wrote expenses file")
+	s.logger.Println("Wrote expenses file")
 	return os.WriteFile(path, content, 0644)
 }
 
@@ -105,7 +115,7 @@ func (s *jsonStore) readConfigFile(path string) (*Config, error) {
 	if err := json.Unmarshal(content, &data); err != nil {
 		return nil, err
 	}
-	log.Println("Read config file")
+	s.logger.Println("Read config file")
 	return &data, nil
 }
 
@@ -114,7 +124,7 @@ func (s *jsonStore) writeConfigFile(path string, data *Config) error {
 	if err != nil {
 		return err
 	}
-	log.Println("Wrote config file")
+	s.logger.Println("Wrote config file")
 	return os.WriteFile(path, content, 0644)
 }
 
@@ -462,7 +472,7 @@ func (s *jsonStore) GetExpense(id string) (Expense, error) {
 	}
 	for i, exp := range data.Expenses {
 		if exp.ID == id {
-			log.Printf("Retrieved expense with ID %s\n", id)
+			s.logger.Printf("Retrieved expense with ID %s\n", id)
 			return data.Expenses[i], nil
 		}
 	}
@@ -486,7 +496,7 @@ func (s *jsonStore) AddExpense(expense Expense) error {
 		expense.Date = time.Now()
 	}
 	data.Expenses = append(data.Expenses, expense)
-	log.Printf("Added expense with ID %s\n", expense.ID)
+	s.logger.Printf("Added expense with ID %s\n", expense.ID)
 	return s.writeExpensesFile(s.filePath, data)
 }
 
@@ -507,10 +517,10 @@ func (s *jsonStore) RemoveExpense(id string) error {
 		}
 	}
 	if !found {
-		log.Printf("Expense with ID %s not found\n", id)
+		s.logger.Printf("Expense with ID %s not found\n", id)
 		return fmt.Errorf("expense with ID %s not found", id)
 	}
-	log.Printf("Deleted expense with ID %s\n", id)
+	s.logger.Printf("Deleted expense with ID %s\n", id)
 	data.Expenses = newExpenses
 	return s.writeExpensesFile(s.filePath, data)
 }
@@ -524,7 +534,7 @@ func (s *jsonStore) AddMultipleExpenses(expensesToAdd []Expense) error {
 		return fmt.Errorf("failed to read storage file: %v", err)
 	}
 	data.Expenses = append(data.Expenses, expensesToAdd...)
-	log.Printf("Added %d new recurring expense instances\n", len(expensesToAdd))
+	s.logger.Printf("Added %d new recurring expense instances\n", len(expensesToAdd))
 	return s.writeExpensesFile(s.filePath, data)
 }
 
@@ -550,10 +560,10 @@ func (s *jsonStore) RemoveMultipleExpenses(ids []string) error {
 		}
 	}
 	if len(newExpenses) == originalCount {
-		log.Println("RemoveMultipleExpenses: no expenses found to remove")
+		s.logger.Println("RemoveMultipleExpenses: no expenses found to remove")
 		return nil
 	}
-	log.Printf("Removed %d expenses\n", originalCount-len(newExpenses))
+	s.logger.Printf("Removed %d expenses\n", originalCount-len(newExpenses))
 	data.Expenses = newExpenses
 	return s.writeExpensesFile(s.filePath, data)
 }
@@ -578,10 +588,10 @@ func (s *jsonStore) UpdateExpense(id string, expense Expense) error {
 		}
 	}
 	if !found {
-		log.Printf("expense with ID %s not found\n", id)
+		s.logger.Printf("expense with ID %s not found\n", id)
 		return fmt.Errorf("expense with ID %s not found", id)
 	}
-	log.Printf("Edited expense with ID %s\n", id)
+	s.logger.Printf("Edited expense with ID %s\n", id)
 	return s.writeExpensesFile(s.filePath, data)
 }
 

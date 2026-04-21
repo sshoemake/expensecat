@@ -11,28 +11,32 @@ import (
 const defaultBasePath = "~/Downloads/Expense-Files"
 
 type AppModel struct {
-	currentScreen   int
-	store           storage.Storage
-	basePath        string
-	mainMenu        MainMenuModel
-	importModel     ImportModel
-	reportModel     ReportModel
-	settingsModel   SettingsModel
-	exclusionModel  ExclusionListModel
-	importPathModel ImportPathModel
+	currentScreen    int
+	store            storage.Storage
+	basePath         string
+	mainMenu         MainMenuModel
+	importModel      ImportModel
+	reportModel      ReportModel
+	settingsModel    SettingsModel
+	exclusionModel   ExclusionListModel
+	importPathModel  ImportPathModel
+	categoryModel    CategoryListModel
+	expenseListModel ExpenseListModel
 }
 
 func NewAppModel(store storage.Storage) AppModel {
 	return AppModel{
-		currentScreen:   ScreenMainMenu,
-		store:           store,
-		basePath:        getBasePath(store),
-		mainMenu:        NewMainMenuModel(),
-		importModel:     NewImportModel(store, getBasePath(store)),
-		reportModel:     NewReportModel(store),
-		settingsModel:   NewSettingsModel(store),
-		exclusionModel:  NewExclusionListModel(store),
-		importPathModel: NewImportPathModel(store),
+		currentScreen:    ScreenMainMenu,
+		store:            store,
+		basePath:         getBasePath(store),
+		mainMenu:         NewMainMenuModel(),
+		importModel:      NewImportModel(store, getBasePath(store)),
+		reportModel:      NewReportModel(store),
+		settingsModel:    NewSettingsModel(store),
+		exclusionModel:   NewExclusionListModel(store),
+		importPathModel:  NewImportPathModel(store),
+		categoryModel:    NewCategoryListModel(store),
+		expenseListModel: NewExpenseListModel(store),
 	}
 }
 
@@ -69,6 +73,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.exclusionModel = NewExclusionListModel(m.store)
 		case ScreenImportPath:
 			m.importPathModel = NewImportPathModel(m.store)
+		case ScreenCategoryList:
+			m.categoryModel = NewCategoryListModel(m.store)
+		case ScreenExpenseList:
+			m.expenseListModel = NewExpenseListModel(m.store)
 		}
 		return m, nil
 
@@ -121,7 +129,24 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			return m, cmd
+
+		case ScreenCategoryList:
+			newModel, cmd := m.categoryModel.Update(msg)
+			m.categoryModel = newModel.(CategoryListModel)
+			if m.categoryModel.IsQuitting() {
+				return m, tea.Quit
+			}
+			return m, cmd
+
+		case ScreenExpenseList:
+			newModel, cmd := m.expenseListModel.Update(msg)
+			m.expenseListModel = *newModel.(*ExpenseListModel)
+			if m.expenseListModel.IsQuitting() {
+				return m, tea.Quit
+			}
+			return m, cmd
 		}
+		return m, nil
 	}
 
 	switch m.currentScreen {
@@ -143,6 +168,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScreenImportPath:
 		newModel, _ := m.importPathModel.Update(msg)
 		m.importPathModel = newModel.(ImportPathModel)
+	case ScreenExpenseList:
+		newModel, _ := m.expenseListModel.Update(msg)
+		m.expenseListModel = *newModel.(*ExpenseListModel)
 	}
 
 	return m, nil
@@ -162,6 +190,10 @@ func (m AppModel) View() string {
 		return m.exclusionModel.View()
 	case ScreenImportPath:
 		return m.importPathModel.View()
+	case ScreenCategoryList:
+		return m.categoryModel.View()
+	case ScreenExpenseList:
+		return m.expenseListModel.View()
 	default:
 		return "Unknown screen\n"
 	}

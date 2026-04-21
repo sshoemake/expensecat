@@ -30,6 +30,7 @@ const animationTickRate = 200 * time.Millisecond
 
 const (
 	MenuImport = iota
+	MenuExpenseList
 	MenuReport
 	MenuSettings
 	MenuQuit
@@ -47,6 +48,7 @@ func NewMainMenuModel() MainMenuModel {
 	return MainMenuModel{
 		choices: []string{
 			"Import Expenses",
+			"Manage Expenses",
 			"View Monthly Totals",
 			"Settings",
 			"Quit",
@@ -83,6 +85,11 @@ func (m MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor == MenuImport {
 				return m, func() tea.Msg {
 					return NavigationMsg{Destination: ScreenImport}
+				}
+			}
+			if m.cursor == MenuExpenseList {
+				return m, func() tea.Msg {
+					return NavigationMsg{Destination: ScreenExpenseList}
 				}
 			}
 			if m.cursor == MenuReport {

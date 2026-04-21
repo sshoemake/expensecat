@@ -11,4 +11,6 @@ const (
 	ScreenSettings
 	ScreenExclusionList
 	ScreenImportPath
+	ScreenCategoryList
+	ScreenExpenseList
 )

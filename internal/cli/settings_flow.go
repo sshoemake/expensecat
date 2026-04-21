@@ -15,6 +15,7 @@ var settingsLogo = ` /\_/\
 const (
 	SettingsExclusionList = iota
 	SettingsImportPath
+	SettingsCategoryList
 	SettingsBack
 )
 
@@ -51,7 +52,7 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "down", "j":
-			if m.cursor < 2 {
+			if m.cursor < 3 {
 				m.cursor++
 			}
 		case "enter":
@@ -63,6 +64,11 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor == SettingsImportPath {
 				return m, func() tea.Msg {
 					return NavigationMsg{Destination: ScreenImportPath}
+				}
+			}
+			if m.cursor == SettingsCategoryList {
+				return m, func() tea.Msg {
+					return NavigationMsg{Destination: ScreenCategoryList}
 				}
 			}
 			if m.cursor == SettingsBack {
@@ -82,7 +88,7 @@ func (m SettingsModel) View() string {
 	s.WriteString("Settings\n")
 	s.WriteString("─────────────────────────────\n")
 
-	choices := []string{"Exclusion List", "Import Path", "Back"}
+	choices := []string{"Exclusion List", "Import Path", "Category List", "Back"}
 	for i, choice := range choices {
 		cursor := "  "
 		if m.cursor == i {
@@ -102,9 +108,10 @@ func (m SettingsModel) IsQuitting() bool {
 }
 
 const (
-	ExclusionListMenu = iota
+	ExclusionListView = iota
 	ExclusionListAdd
-	ExclusionListRemove
+	ExclusionListEdit
+	ExclusionListDeleteConfirm
 	ExclusionListBack
 )
 
@@ -113,6 +120,7 @@ type ExclusionListModel struct {
 	patterns   []string
 	cursor     int
 	mode       int
+	editIndex  int
 	inputValue string
 	errorMsg   string
 	successMsg string
@@ -121,8 +129,9 @@ type ExclusionListModel struct {
 
 func NewExclusionListModel(store storage.Storage) ExclusionListModel {
 	m := ExclusionListModel{
-		store: store,
-		mode:  ExclusionListMenu,
+		store:     store,
+		mode:      ExclusionListView,
+		editIndex: -1,
 	}
 	m.loadPatterns()
 	return m
@@ -150,14 +159,13 @@ func (m ExclusionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "esc":
 			switch m.mode {
-			case ExclusionListAdd:
+			case ExclusionListAdd, ExclusionListEdit:
 				m.inputValue = ""
-				m.mode = ExclusionListMenu
-				m.cursor = 0
-			case ExclusionListRemove:
-				m.mode = ExclusionListMenu
-				m.cursor = 0
-			case ExclusionListMenu:
+				m.mode = ExclusionListView
+				m.editIndex = -1
+			case ExclusionListDeleteConfirm:
+				m.mode = ExclusionListView
+			case ExclusionListView:
 				return m, func() tea.Msg {
 					return NavigationMsg{Destination: ScreenSettings}
 				}
@@ -168,27 +176,19 @@ func (m ExclusionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "down", "j":
 			switch m.mode {
-			case ExclusionListMenu:
-				if m.cursor < 2 {
-					m.cursor++
-				}
-			case ExclusionListRemove:
-				maxChoices := len(m.patterns) + 1
-				if m.cursor < maxChoices-1 {
+			case ExclusionListView:
+				if m.cursor < len(m.patterns) {
 					m.cursor++
 				}
 			}
 		case "enter":
 			switch m.mode {
-			case ExclusionListMenu:
-				switch m.cursor {
-				case 0:
-					m.mode = ExclusionListAdd
-					m.inputValue = ""
-				case 1:
-					m.mode = ExclusionListRemove
-					m.cursor = 0
-				case 2:
+			case ExclusionListView:
+				if m.cursor < len(m.patterns) {
+					m.mode = ExclusionListEdit
+					m.editIndex = m.cursor
+					m.inputValue = m.patterns[m.cursor]
+				} else if m.cursor == len(m.patterns) {
 					return m, func() tea.Msg {
 						return NavigationMsg{Destination: ScreenSettings}
 					}
@@ -203,27 +203,73 @@ func (m ExclusionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.loadPatterns()
 					}
 					m.inputValue = ""
-					m.mode = ExclusionListMenu
-					m.cursor = 0
+					m.mode = ExclusionListView
 				}
-			case ExclusionListRemove:
+			case ExclusionListEdit:
+				if m.inputValue != "" && m.editIndex >= 0 {
+					oldPattern := m.patterns[m.editIndex]
+					err := m.store.RemoveExclusion(oldPattern)
+					if err != nil {
+						m.errorMsg = err.Error()
+					} else {
+						err = m.store.AddExclusion(m.inputValue)
+						if err != nil {
+							m.errorMsg = err.Error()
+							m.store.AddExclusion(oldPattern)
+						} else {
+							m.successMsg = "Pattern updated successfully"
+							m.loadPatterns()
+						}
+					}
+					m.inputValue = ""
+					m.editIndex = -1
+					m.mode = ExclusionListView
+				}
+			case ExclusionListDeleteConfirm:
 				if m.cursor < len(m.patterns) {
 					m.removePattern(m.patterns[m.cursor])
 					m.loadPatterns()
 					m.cursor = 0
-					m.mode = ExclusionListMenu
+					m.mode = ExclusionListView
 				} else {
-					m.mode = ExclusionListMenu
-					m.cursor = 0
+					m.mode = ExclusionListView
 				}
 			}
+		case "y":
+			if m.mode == ExclusionListDeleteConfirm && m.cursor < len(m.patterns) {
+				m.removePattern(m.patterns[m.cursor])
+				m.loadPatterns()
+				m.cursor = 0
+				m.mode = ExclusionListView
+			}
+		case "n":
+			if m.mode == ExclusionListDeleteConfirm {
+				m.mode = ExclusionListView
+			}
 		case "backspace":
-			if m.mode == ExclusionListAdd && m.inputValue != "" {
+			if (m.mode == ExclusionListAdd || m.mode == ExclusionListEdit) && m.inputValue != "" {
 				m.inputValue = m.inputValue[:len(m.inputValue)-1]
 			}
 		default:
-			if m.mode == ExclusionListAdd && msg.String() != "" {
+			if (m.mode == ExclusionListAdd || m.mode == ExclusionListEdit) && msg.String() != "" {
 				m.inputValue += msg.String()
+			}
+			if m.mode == ExclusionListView {
+				switch msg.String() {
+				case "a":
+					m.mode = ExclusionListAdd
+					m.inputValue = ""
+				case "e":
+					if m.cursor < len(m.patterns) {
+						m.mode = ExclusionListEdit
+						m.editIndex = m.cursor
+						m.inputValue = m.patterns[m.cursor]
+					}
+				case "x":
+					if m.cursor < len(m.patterns) {
+						m.mode = ExclusionListDeleteConfirm
+					}
+				}
 			}
 		}
 	}
@@ -258,44 +304,31 @@ func (m ExclusionListModel) View() string {
 		s.WriteString("Enter new pattern:\n")
 		fmt.Fprintf(&s, "> %s_\n", m.inputValue)
 		s.WriteString("\nPress Enter to add, Esc to cancel\n")
-	case ExclusionListRemove:
-		s.WriteString("Select pattern to remove:\n\n")
-		for i, pattern := range m.patterns {
-			cursor := "  "
-			if m.cursor == i {
-				cursor = "> "
-			}
-			fmt.Fprintf(&s, "%s%s\n", cursor, pattern)
+	case ExclusionListEdit:
+		s.WriteString("Edit pattern:\n")
+		fmt.Fprintf(&s, "> %s_\n", m.inputValue)
+		s.WriteString("\nPress Enter to save, Esc to cancel\n")
+	case ExclusionListDeleteConfirm:
+		s.WriteString("Confirm delete")
+		if m.cursor < len(m.patterns) {
+			fmt.Fprintf(&s, " '%s'", m.patterns[m.cursor])
 		}
-		cursor := "  "
-		if m.cursor == len(m.patterns) {
-			cursor = "> "
-		}
-		fmt.Fprintf(&s, "%s[Back to Settings]\n", cursor)
-		s.WriteString("\n↑↓ Navigate  Enter to remove\n")
-		s.WriteString("Esc to cancel\n")
+		s.WriteString("?\n\n[Y]es / [N]o\n")
 	default:
-		fmt.Fprintf(&s, "Current patterns (%d):\n\n", len(m.patterns))
+		fmt.Fprintf(&s, "Patterns (%d):\n\n", len(m.patterns))
 		if len(m.patterns) == 0 {
 			s.WriteString("  (no patterns defined)\n")
 		} else {
-			for _, pattern := range m.patterns {
-				fmt.Fprintf(&s, "  • %s\n", pattern)
+			for i, pattern := range m.patterns {
+				cursor := "  "
+				if m.cursor == i {
+					cursor = "> "
+				}
+				fmt.Fprintf(&s, "%s%s\n", cursor, pattern)
 			}
 		}
 
-		s.WriteString("\n")
-		choices := []string{"Add Pattern", "Remove Pattern", "Back"}
-		for i, choice := range choices {
-			cursor := "  "
-			if m.cursor == i {
-				cursor = "> "
-			}
-			fmt.Fprintf(&s, "%s%s\n", cursor, choice)
-		}
-
-		s.WriteString("\n↑↓ Navigate  Enter Select\n")
-		s.WriteString("esc Back to Settings\n")
+		s.WriteString("\na Add     e Edit     x Delete     esc Back to Settings\n")
 	}
 
 	return s.String()
