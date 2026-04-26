@@ -11,20 +11,18 @@ jobs:
     steps:
       - name: Validate version label
         run: |
-          LABELS='${{ toJson(github.event.pull_request.labels) }}'
+          set -euo pipefail
 
-          COUNT=0
+          MATCHING=$(echo '${{ toJson(github.event.pull_request.labels) }}' \
+            | jq -r '[.[].name | select(. == "major" or . == "minor" or . == "patch" or . == "no-release")]')
 
-          for label in major minor patch no-release; do
-            if echo "$LABELS" | grep -q "\"name\":\"$label\""; then
-              COUNT=$((COUNT+1))
-            fi
-          done
+          COUNT=$(echo "$MATCHING" | jq 'length')
 
+          echo "Matching labels: $MATCHING"
           echo "Detected version labels: $COUNT"
 
           if [ "$COUNT" -ne 1 ]; then
-            echo "❌ PR must have exactly ONE of: major, minor, patch, no-release"
+            echo "❌ Found $COUNT matching labels. Expected exactly ONE of: major, minor, patch, no-release"
             exit 1
           fi
 
