@@ -341,8 +341,7 @@ func (s *jsonStore) AddRecurringExpense(recurringExpense RecurringExpense) error
 	if err := s.writeConfigFile(s.configPath, config); err != nil {
 		return fmt.Errorf("failed to write config file: %v", err)
 	}
-	expensesToAdd := generateExpensesFromRecurring(recurringExpense, false)
-	return s.AddMultipleExpenses(expensesToAdd)
+	return nil
 }
 
 func (s *jsonStore) RemoveRecurringExpense(id string, removeAll bool) error {
@@ -408,27 +407,6 @@ func (s *jsonStore) UpdateRecurringExpense(id string, recurringExpense Recurring
 	}
 	if !found {
 		return fmt.Errorf("recurring expense with ID %s not found", id)
-	}
-	expensesData, err := s.readExpensesFile(s.filePath)
-	if err != nil {
-		return fmt.Errorf("failed to read storage file: %v", err)
-	}
-	var remainingExpenses []Expense
-	today := time.Now()
-	for _, exp := range expensesData.Expenses {
-		if exp.RecurringID != id {
-			remainingExpenses = append(remainingExpenses, exp)
-			continue
-		}
-		if !updateAll && !exp.Date.After(today) {
-			remainingExpenses = append(remainingExpenses, exp)
-		}
-	}
-	expensesData.Expenses = remainingExpenses
-	expensesToAdd := generateExpensesFromRecurring(recurringExpense, !updateAll)
-	expensesData.Expenses = append(expensesData.Expenses, expensesToAdd...)
-	if err := s.writeExpensesFile(s.filePath, expensesData); err != nil {
-		return err
 	}
 	return s.writeConfigFile(s.configPath, config)
 }
@@ -593,62 +571,4 @@ func (s *jsonStore) UpdateExpense(id string, expense Expense) error {
 	}
 	s.logger.Printf("Edited expense with ID %s\n", id)
 	return s.writeExpensesFile(s.filePath, data)
-}
-
-func generateExpensesFromRecurring(recExp RecurringExpense, fromToday bool) []Expense {
-	var expenses []Expense
-	currentDate := recExp.StartDate
-	today := time.Now()
-	occurrencesToGenerate := recExp.Occurrences
-	if fromToday {
-		for currentDate.Before(today) && (recExp.Occurrences == 0 || occurrencesToGenerate > 0) {
-			switch recExp.Interval {
-			case "daily":
-				currentDate = currentDate.AddDate(0, 0, 1)
-			case "weekly":
-				currentDate = currentDate.AddDate(0, 0, 7)
-			case "monthly":
-				currentDate = currentDate.AddDate(0, 1, 0)
-			case "yearly":
-				currentDate = currentDate.AddDate(1, 0, 0)
-			default:
-				return expenses
-			}
-			if recExp.Occurrences > 0 {
-				occurrencesToGenerate--
-			}
-		}
-	}
-	limit := occurrencesToGenerate
-
-	for range limit {
-		if currentDate.Year() > 9999 {
-			break
-		}
-
-		expense := Expense{
-			ID:          uuid.New().String(),
-			RecurringID: recExp.ID,
-			Name:        recExp.Name,
-			Category:    recExp.Category,
-			Amount:      recExp.Amount,
-			Currency:    recExp.Currency,
-			Date:        currentDate,
-			Tags:        recExp.Tags,
-		}
-		expenses = append(expenses, expense)
-		switch recExp.Interval {
-		case "daily":
-			currentDate = currentDate.AddDate(0, 0, 1)
-		case "weekly":
-			currentDate = currentDate.AddDate(0, 0, 7)
-		case "monthly":
-			currentDate = currentDate.AddDate(0, 1, 0)
-		case "yearly":
-			currentDate = currentDate.AddDate(1, 0, 0)
-		default:
-			return expenses
-		}
-	}
-	return expenses
 }

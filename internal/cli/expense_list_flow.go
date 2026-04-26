@@ -248,8 +248,14 @@ func (m *ExpenseListModel) updateSearchMode(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		if len(m.searchQuery) > 0 {
 			m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
 		}
+	case "left", "right":
+		// Ignore arrow keys in search mode
+	case " ":
+		if msg.Type == tea.KeySpace {
+			m.searchQuery += " "
+		}
 	default:
-		if len(msg.Runes) > 0 {
+		if msg.Type == tea.KeyRunes {
 			m.searchQuery += msg.String()
 		}
 	}
@@ -313,8 +319,14 @@ func (m *ExpenseListModel) updateEditMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.editValue) > 0 {
 			m.editValue = m.editValue[:len(m.editValue)-1]
 		}
+	case "left", "right":
+		// Ignore arrow keys in edit mode
+	case " ":
+		if msg.Type == tea.KeySpace {
+			m.editValue += " "
+		}
 	default:
-		if len(msg.Runes) > 0 {
+		if msg.Type == tea.KeyRunes {
 			m.editValue += msg.String()
 		}
 	}
