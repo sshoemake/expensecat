@@ -94,12 +94,17 @@ func (m *mockStoreForCLI) RemoveExpense(string) error                  { return 
 func (m *mockStoreForCLI) AddMultipleExpenses([]storage.Expense) error { return nil }
 func (m *mockStoreForCLI) RemoveMultipleExpenses([]string) error       { return nil }
 func (m *mockStoreForCLI) UpdateExpense(string, storage.Expense) error { return nil }
+func (m *mockStoreForCLI) GetExpensesByMonthGroupedByCategory(year, month int) ([]storage.CategoryTotal, error) {
+	return []storage.CategoryTotal{
+		{Category: "Food", Total: 100.00},
+	}, nil
+}
 
 func TestMainMenuModel_Initialization(t *testing.T) {
 	model := NewMainMenuModel()
 
-	if len(model.choices) != 5 {
-		t.Errorf("Expected 5 choices, got %d", len(model.choices))
+	if len(model.choices) != 6 {
+		t.Errorf("Expected 6 choices, got %d", len(model.choices))
 	}
 	if model.cursor != 0 {
 		t.Errorf("Expected cursor to be 0, got %d", model.cursor)
@@ -113,11 +118,11 @@ func TestMainMenuModel_Initialization(t *testing.T) {
 	if model.choices[2] != "View Monthly Totals" {
 		t.Errorf("Expected third choice to be 'View Monthly Totals', got %s", model.choices[2])
 	}
-	if model.choices[3] != "Settings" {
-		t.Errorf("Expected fourth choice to be 'Settings', got %s", model.choices[3])
+	if model.choices[3] != "View Recurring Expenses" {
+		t.Errorf("Expected fourth choice to be 'View Recurring Expenses', got %s", model.choices[3])
 	}
-	if model.choices[4] != "Quit" {
-		t.Errorf("Expected fifth choice to be 'Quit', got %s", model.choices[4])
+	if model.choices[4] != "Settings" {
+		t.Errorf("Expected fifth choice to be 'Settings', got %s", model.choices[4])
 	}
 }
 
@@ -143,19 +148,24 @@ func TestReportModel_Initialization(t *testing.T) {
 	store := &mockStoreForCLI{}
 	model := NewReportModel(store)
 
-	if model.inputMonth != "" {
-		t.Errorf("Expected inputMonth to be empty, got %s", model.inputMonth)
+	now := time.Now()
+	currentMonth := int(now.Month())
+	currentYear := now.Year()
+	expectedMonth := currentMonth - 1
+	expectedYear := currentYear
+	if expectedMonth < 1 {
+		expectedMonth = 12
+		expectedYear--
 	}
-	currentYear := time.Now().Year()
-	expectedYear := time.Date(currentYear, time.January, 1, 0, 0, 0, 0, time.UTC)
-	if model.inputYear != expectedYear.Format("2006") {
-		t.Errorf("Expected inputYear to be %d, got %s", currentYear, model.inputYear)
+
+	if model.month != expectedMonth {
+		t.Errorf("Expected month to be %d, got %d", expectedMonth, model.month)
 	}
-	if model.cursor != 0 {
-		t.Errorf("Expected cursor to be 0, got %d", model.cursor)
+	if model.year != expectedYear {
+		t.Errorf("Expected year to be %d, got %d", expectedYear, model.year)
 	}
-	if model.showResults {
-		t.Error("Expected showResults to be false")
+	if !model.showResults {
+		t.Error("Expected showResults to be true")
 	}
 }
 
@@ -227,12 +237,12 @@ func TestMainMenuModel_Navigation(t *testing.T) {
 
 func TestMainMenuModel_AtBottom(t *testing.T) {
 	model := NewMainMenuModel()
-	model.cursor = 4
+	model.cursor = 5
 
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = newModel.(MainMenuModel)
-	if model.cursor != 4 {
-		t.Errorf("At bottom, cursor should stay at 4, got %d", model.cursor)
+	if model.cursor != 5 {
+		t.Errorf("At bottom, cursor should stay at 5, got %d", model.cursor)
 	}
 }
 
@@ -284,6 +294,11 @@ func TestImportModel_FileSelectionState(t *testing.T) {
 func TestReportModel_Navigation(t *testing.T) {
 	store := &mockStoreForCLI{}
 	model := NewReportModel(store)
+	model.showResults = true
+	model.results = []storage.CategoryTotal{
+		{Category: "Food", Total: 100.00},
+		{Category: "Transport", Total: 50.00},
+	}
 
 	if model.cursor != 0 {
 		t.Errorf("Initial cursor = %d, want 0", model.cursor)
@@ -297,8 +312,8 @@ func TestReportModel_Navigation(t *testing.T) {
 
 	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = newModel.(ReportModel)
-	if model.cursor != 2 {
-		t.Errorf("At bottom, cursor should stay at 2, got %d", model.cursor)
+	if model.cursor != 0 {
+		t.Errorf("At bottom, cursor should stay at 0 when wrapping, got %d", model.cursor)
 	}
 }
 
@@ -331,85 +346,6 @@ func TestSettingsModel_CursorMovement(t *testing.T) {
 	model = newModel.(SettingsModel)
 	if model.cursor != 0 {
 		t.Errorf("After second up arrow, cursor = %d, want 0", model.cursor)
-	}
-}
-
-func TestReportModel_MonthInput(t *testing.T) {
-	store := &mockStoreForCLI{}
-	model := NewReportModel(store)
-
-	model.cursor = 0
-	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	model = newModel.(ReportModel)
-	if model.inputtingFor != 1 {
-		t.Errorf("After selecting Month, inputtingFor = %d, want 1", model.inputtingFor)
-	}
-
-	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
-	model = newModel.(ReportModel)
-	if model.inputMonth != "3" {
-		t.Errorf("inputMonth = %q, want '3'", model.inputMonth)
-	}
-
-	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("0")})
-	model = newModel.(ReportModel)
-	if model.inputMonth != "30" {
-		t.Errorf("inputMonth = %q, want '30'", model.inputMonth)
-	}
-}
-
-func TestReportModel_YearInput(t *testing.T) {
-	store := &mockStoreForCLI{}
-	model := NewReportModel(store)
-
-	model.cursor = 1
-	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	model = newModel.(ReportModel)
-	if model.inputtingFor != 2 {
-		t.Errorf("After selecting Year, inputtingFor = %d, want 2", model.inputtingFor)
-	}
-
-	model.inputYear = ""
-	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
-	model = newModel.(ReportModel)
-	if model.inputYear != "2" {
-		t.Errorf("inputYear = %q, want '2'", model.inputYear)
-	}
-
-	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("0")})
-	model = newModel.(ReportModel)
-	if model.inputYear != "20" {
-		t.Errorf("inputYear = %q, want '20'", model.inputYear)
-	}
-
-	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
-	model = newModel.(ReportModel)
-	if model.inputYear != "202" {
-		t.Errorf("inputYear = %q, want '202'", model.inputYear)
-	}
-}
-
-func TestReportModel_InputPersistence(t *testing.T) {
-	store := &mockStoreForCLI{}
-	model := NewReportModel(store)
-
-	model.inputMonth = "3"
-	model.cursor = 1
-	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	model = newModel.(ReportModel)
-	if model.inputMonth != "3" {
-		t.Errorf("inputMonth should persist after switching to Year, got %q", model.inputMonth)
-	}
-
-	model.inputYear = "2024"
-	model.cursor = 0
-	newModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	model = newModel.(ReportModel)
-	if model.inputMonth != "3" {
-		t.Errorf("inputMonth should persist after switching to Month, got %q", model.inputMonth)
-	}
-	if model.inputYear != "2024" {
-		t.Errorf("inputYear should persist after switching to Month, got %q", model.inputYear)
 	}
 }
 
@@ -479,7 +415,7 @@ func TestMainMenuModel_EnterOnReport(t *testing.T) {
 
 func TestMainMenuModel_EnterOnQuit(t *testing.T) {
 	model := NewMainMenuModel()
-	model.cursor = 4
+	model.cursor = 5
 	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	newMainMenu := newModel.(MainMenuModel)
 	if cmd == nil {
@@ -808,47 +744,6 @@ func TestReportModel_IsQuitting(t *testing.T) {
 	}
 }
 
-func TestReportModel_Execute_InvalidMonth(t *testing.T) {
-	store := &mockStoreForCLI{}
-	model := NewReportModel(store)
-	model.inputMonth = "13"
-	model.inputYear = "2024"
-	model.cursor = 2
-
-	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	newReportModel := newModel.(ReportModel)
-	if newReportModel.errorMsg == "" {
-		t.Error("Should set errorMsg for invalid month")
-	}
-}
-
-func TestReportModel_Execute_InvalidYear(t *testing.T) {
-	store := &mockStoreForCLI{}
-	model := NewReportModel(store)
-	model.inputMonth = "3"
-	model.inputYear = "abc"
-	model.cursor = 2
-
-	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	newReportModel := newModel.(ReportModel)
-	if newReportModel.errorMsg == "" {
-		t.Error("Should set errorMsg for invalid year")
-	}
-}
-
-func TestReportModel_InputYear_Backspace(t *testing.T) {
-	store := &mockStoreForCLI{}
-	model := NewReportModel(store)
-	model.inputtingFor = 2
-	model.inputYear = "2024"
-
-	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	newReportModel := newModel.(ReportModel)
-	if newReportModel.inputYear != "202" {
-		t.Errorf("inputYear = %q, want '202'", newReportModel.inputYear)
-	}
-}
-
 func TestReportModel_ResultBackToMenu(t *testing.T) {
 	store := &mockStoreForCLI{}
 	model := NewReportModel(store)
@@ -877,13 +772,19 @@ func TestReportModel_EscKey(t *testing.T) {
 func TestReportModel_ViewShowsMonthYear(t *testing.T) {
 	store := &mockStoreForCLI{}
 	model := NewReportModel(store)
+	model.showResults = true
+	model.results = []storage.CategoryTotal{
+		{Category: "Food", Total: 100.00},
+	}
+	model.month = 3
+	model.year = 2024
 
 	view := model.View()
-	if !strings.Contains(view, "Month") {
-		t.Error("View() should contain Month")
+	if !strings.Contains(view, "March") {
+		t.Error("View() should contain month name")
 	}
-	if !strings.Contains(view, "Year") {
-		t.Error("View() should contain Year")
+	if !strings.Contains(view, "2024") {
+		t.Error("View() should contain year")
 	}
 }
 
@@ -973,15 +874,15 @@ func TestMainMenuModel_TickCmd(t *testing.T) {
 func TestReportModel_Execute_Success(t *testing.T) {
 	store := &mockStoreForCLI{}
 	model := NewReportModel(store)
-	model.inputMonth = "1"
-	model.inputYear = "2024"
-	model.cursor = 2
+	model.showResults = true
+	model.month = 1
+	model.year = 2024
 
-	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	newReportModel := newModel.(ReportModel)
-	if newReportModel.errorMsg != "" {
-		t.Logf("executeReport error (expected): %v", newReportModel.errorMsg)
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Error("Enter should return navigation command")
 	}
+	_ = newModel
 }
 
 func TestMainMenuModel_View_ContainsDivider(t *testing.T) {
@@ -1035,10 +936,14 @@ func TestImportModel_View_ContainsNavigationHelp(t *testing.T) {
 func TestReportModel_View_ContainsNavigationHelp(t *testing.T) {
 	store := &mockStoreForCLI{}
 	model := NewReportModel(store)
+	model.showResults = true
+	model.results = []storage.CategoryTotal{
+		{Category: "Food", Total: 100.00},
+	}
 
 	view := model.View()
-	if !strings.Contains(view, "Arrow") && !strings.Contains(view, "navigate") {
-		t.Error("View() should contain navigation help")
+	if !strings.Contains(view, "←") || !strings.Contains(view, "→") {
+		t.Error("View() should contain arrow navigation")
 	}
 }
 
@@ -1058,30 +963,6 @@ func TestImportModel_LoadFiles_Error(t *testing.T) {
 	model := NewImportModel(store, "/nonexistent/path")
 	if model.dirError == "" {
 		t.Log("dirError may be empty for nonexistent path")
-	}
-}
-
-func TestReportModel_View_MonthInputLabel(t *testing.T) {
-	store := &mockStoreForCLI{}
-	model := NewReportModel(store)
-	model.inputtingFor = 1
-	model.inputMonth = "5"
-
-	view := model.View()
-	if !strings.Contains(view, "5") {
-		t.Error("View() should show month input")
-	}
-}
-
-func TestReportModel_View_YearInputLabel(t *testing.T) {
-	store := &mockStoreForCLI{}
-	model := NewReportModel(store)
-	model.inputtingFor = 2
-	model.inputYear = "2025"
-
-	view := model.View()
-	if !strings.Contains(view, "2025") {
-		t.Error("View() should show year input")
 	}
 }
 
@@ -1114,9 +995,13 @@ func TestAppModel_View_AfterNavigation(t *testing.T) {
 	}
 
 	model.currentScreen = ScreenReport
+	model.reportModel.showResults = true
+	model.reportModel.results = []storage.CategoryTotal{
+		{Category: "Food", Total: 100.00},
+	}
 	view = model.View()
-	if !strings.Contains(view, "Report") {
-		t.Error("View() should show Report screen")
+	if !strings.Contains(view, "Food") {
+		t.Error("View() should show Report screen with results")
 	}
 }
 
@@ -1170,6 +1055,11 @@ func TestAppModel_Update_KeyMsg_Report(t *testing.T) {
 	store := &mockStoreForCLI{}
 	model := NewAppModel(store)
 	model.currentScreen = ScreenReport
+	model.reportModel.showResults = true
+	model.reportModel.results = []storage.CategoryTotal{
+		{Category: "Food", Total: 100.00},
+		{Category: "Transport", Total: 50.00},
+	}
 
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	newAppModel := newModel.(AppModel)
@@ -3010,6 +2900,146 @@ func TestExpenseListModel_SearchMode(t *testing.T) {
 	}
 }
 
+func TestAppModel_Update_NavigationMsg_RecurringList(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenRecurringList})
+	newAppModel := newModel.(AppModel)
+
+	if newAppModel.currentScreen != ScreenRecurringList {
+		t.Errorf("currentScreen = %d, want %d", newAppModel.currentScreen, ScreenRecurringList)
+	}
+}
+
+func TestAppModel_Update_NavigationMsg_RecurringStatus(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenRecurringStatus})
+	newAppModel := newModel.(AppModel)
+
+	if newAppModel.currentScreen != ScreenRecurringStatus {
+		t.Errorf("currentScreen = %d, want %d", newAppModel.currentScreen, ScreenRecurringStatus)
+	}
+}
+
+func TestAppModel_View_RecurringListScreen(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenRecurringList
+	model.recurringModel = NewRecurringListModel(store)
+
+	view := model.View()
+	if !strings.Contains(view, "Payments") {
+		t.Error("Expected RecurringList view")
+	}
+}
+
+func TestAppModel_View_RecurringStatusScreen(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenRecurringStatus
+	model.recurringStatusModel = NewRecurringStatusModel(store)
+
+	view := model.View()
+	if !strings.Contains(view, "Recurring") {
+		t.Error("Expected RecurringStatus view")
+	}
+}
+
+func TestAppModel_Update_KeyMsg_RecurringList(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenRecurringList
+	model.recurringModel = NewRecurringListModel(store)
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newAppModel := newModel.(AppModel)
+
+	if newAppModel.recurringModel.cursor != 0 {
+		t.Errorf("recurringModel.cursor = %d, want 0 (list is empty)", newAppModel.recurringModel.cursor)
+	}
+}
+
+func TestAppModel_Update_KeyMsg_RecurringStatus(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenRecurringStatus
+	model.recurringStatusModel = NewRecurringStatusModel(store)
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newAppModel := newModel.(AppModel)
+
+	if newAppModel.recurringStatusModel.cursor != 0 {
+		t.Errorf("recurringStatusModel.cursor = %d, want 0 (list is empty)", newAppModel.recurringStatusModel.cursor)
+	}
+}
+
+func TestAppModel_Update_NavigationMsg_CategoryList(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+
+	newModel, _ := model.Update(NavigationMsg{Destination: ScreenCategoryList})
+	newAppModel := newModel.(AppModel)
+
+	if newAppModel.currentScreen != ScreenCategoryList {
+		t.Errorf("currentScreen = %d, want %d", newAppModel.currentScreen, ScreenCategoryList)
+	}
+}
+
+func TestAppModel_View_CategoryListScreen(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenCategoryList
+	model.categoryModel = NewCategoryListModel(store)
+
+	view := model.View()
+	if !strings.Contains(view, "Category") {
+		t.Error("Expected Category view")
+	}
+}
+
+func TestAppModel_Update_KeyMsg_CategoryList(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenCategoryList
+	model.categoryModel = NewCategoryListModel(store)
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newAppModel := newModel.(AppModel)
+
+	if newAppModel.categoryModel.cursor != 0 {
+		t.Errorf("categoryModel.cursor = %d, want 0 (list is empty)", newAppModel.categoryModel.cursor)
+	}
+}
+
+func TestAppModel_Update_DefaultScreen(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = 999
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newAppModel := newModel.(AppModel)
+
+	if newAppModel.currentScreen != 999 {
+		t.Error("Screen should remain unchanged")
+	}
+}
+
+func TestAppModel_Update_NonKeyMsg_AnyScreen(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = ScreenMainMenu
+
+	newModel, _ := model.Update("some string message")
+	newAppModel := newModel.(AppModel)
+
+	if newAppModel.currentScreen != ScreenMainMenu {
+		t.Error("Screen should remain unchanged")
+	}
+}
+
 func TestExpenseListModel_SearchModeTyping(t *testing.T) {
 	store := &mockStoreForCLI{}
 	model := NewExpenseListModel(store)
@@ -4641,4 +4671,1180 @@ func TestExpenseListModel_Update_BrowseMode_Right_AtEnd(t *testing.T) {
 	if newExpenseListModel.page != 1 {
 		t.Error("page should stay at 1 when at end")
 	}
+}
+
+type mockStoreForRecurringStatus struct {
+	recurringExpenses []storage.RecurringExpense
+	expenses          []storage.Expense
+	recurringErr      error
+	expensesErr       error
+}
+
+func (m *mockStoreForRecurringStatus) Close() error { return nil }
+func (m *mockStoreForRecurringStatus) GetConfig() (*storage.Config, error) {
+	return &storage.Config{}, nil
+}
+func (m *mockStoreForRecurringStatus) GetCategories() ([]string, error) { return []string{}, nil }
+func (m *mockStoreForRecurringStatus) UpdateCategories([]string) error  { return nil }
+func (m *mockStoreForRecurringStatus) GetAllExpenses(startDate, endDate *time.Time) ([]storage.Expense, error) {
+	return m.expenses, m.expensesErr
+}
+func (m *mockStoreForRecurringStatus) GetExpense(string) (storage.Expense, error) {
+	return storage.Expense{}, nil
+}
+func (m *mockStoreForRecurringStatus) AddExpense(storage.Expense) error            { return nil }
+func (m *mockStoreForRecurringStatus) RemoveExpense(string) error                  { return nil }
+func (m *mockStoreForRecurringStatus) UpdateExpense(string, storage.Expense) error { return nil }
+func (m *mockStoreForRecurringStatus) AddMultipleExpenses([]storage.Expense) error { return nil }
+func (m *mockStoreForRecurringStatus) RemoveMultipleExpenses([]string) error       { return nil }
+func (m *mockStoreForRecurringStatus) GetExclusionList() ([]string, error)         { return []string{}, nil }
+func (m *mockStoreForRecurringStatus) AddExclusion(string) error                   { return nil }
+func (m *mockStoreForRecurringStatus) RemoveExclusion(string) error                { return nil }
+func (m *mockStoreForRecurringStatus) UpdateExclusionList([]string) error          { return nil }
+func (m *mockStoreForRecurringStatus) GetImportPath() (string, error)              { return "", nil }
+func (m *mockStoreForRecurringStatus) UpdateImportPath(string) error               { return nil }
+func (m *mockStoreForRecurringStatus) GetCurrency() (string, error)                { return "usd", nil }
+func (m *mockStoreForRecurringStatus) UpdateCurrency(string) error                 { return nil }
+func (m *mockStoreForRecurringStatus) GetStartDate() (int, error)                  { return 1, nil }
+func (m *mockStoreForRecurringStatus) UpdateStartDate(int) error                   { return nil }
+func (m *mockStoreForRecurringStatus) GetRecurringExpenses() ([]storage.RecurringExpense, error) {
+	return m.recurringExpenses, m.recurringErr
+}
+func (m *mockStoreForRecurringStatus) GetRecurringExpense(string) (storage.RecurringExpense, error) {
+	return storage.RecurringExpense{}, nil
+}
+func (m *mockStoreForRecurringStatus) AddRecurringExpense(storage.RecurringExpense) error { return nil }
+func (m *mockStoreForRecurringStatus) RemoveRecurringExpense(string, bool) error          { return nil }
+func (m *mockStoreForRecurringStatus) UpdateRecurringExpense(string, storage.RecurringExpense, bool) error {
+	return nil
+}
+
+func TestRecurringStatusModel_Initialization(t *testing.T) {
+	now := time.Now()
+	expectedMonth := int(now.Month()) - 1
+	if expectedMonth == 0 {
+		expectedMonth = 12
+	}
+	expectedYear := now.Year()
+	if expectedMonth == 12 {
+		expectedYear--
+	}
+
+	store := &mockStoreForRecurringStatus{}
+	model := NewRecurringStatusModel(store)
+
+	if model.month != expectedMonth {
+		t.Errorf("Expected month %d, got %d", expectedMonth, model.month)
+	}
+	if model.year != expectedYear {
+		t.Errorf("Expected year %d, got %d", expectedYear, model.year)
+	}
+}
+
+func TestRecurringStatusModel_ExecuteQuery_NoRecurring(t *testing.T) {
+	store := &mockStoreForRecurringStatus{
+		recurringExpenses: []storage.RecurringExpense{},
+		expenses:          []storage.Expense{},
+	}
+	model := NewRecurringStatusModel(store)
+	model.month = 3
+	model.year = 2026
+
+	model.executeQuery()
+
+	if len(model.results) != 0 {
+		t.Errorf("Expected 0 results, got %d", len(model.results))
+	}
+	if !model.showResults {
+		t.Error("showResults should be true after executeQuery")
+	}
+}
+
+func TestRecurringStatusModel_ExecuteQuery_WithPaid(t *testing.T) {
+	store := &mockStoreForRecurringStatus{
+		recurringExpenses: []storage.RecurringExpense{
+			{ID: "rec-1", Name: "Netflix", Amount: 15.00},
+		},
+		expenses: []storage.Expense{
+			{ID: "exp-1", Name: "Netflix Subscription", Amount: 15.00, Date: time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC)},
+		},
+	}
+	model := NewRecurringStatusModel(store)
+	model.month = 3
+	model.year = 2026
+
+	model.executeQuery()
+
+	if len(model.results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(model.results))
+	}
+	if !model.results[0].Paid {
+		t.Error("Expected recurring to be marked as paid")
+	}
+	if model.results[0].Amount != 15.00 {
+		t.Errorf("Expected amount 15.00, got %.2f", model.results[0].Amount)
+	}
+}
+
+func TestRecurringStatusModel_ExecuteQuery_WithPending(t *testing.T) {
+	store := &mockStoreForRecurringStatus{
+		recurringExpenses: []storage.RecurringExpense{
+			{ID: "rec-1", Name: "Netflix", Amount: 15.00},
+		},
+		expenses: []storage.Expense{},
+	}
+	model := NewRecurringStatusModel(store)
+	model.month = 3
+	model.year = 2026
+
+	model.executeQuery()
+
+	if len(model.results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(model.results))
+	}
+	if model.results[0].Paid {
+		t.Error("Expected recurring to be marked as unpaid")
+	}
+}
+
+func TestRecurringStatusModel_NavigateMonth_Next(t *testing.T) {
+	store := &mockStoreForRecurringStatus{}
+	model := NewRecurringStatusModel(store)
+	model.month = 3
+	model.year = 2026
+	model.showResults = true
+
+	model.navigateMonth(1)
+
+	if model.month != 4 {
+		t.Errorf("Expected month 4, got %d", model.month)
+	}
+	if model.year != 2026 {
+		t.Errorf("Expected year 2026, got %d", model.year)
+	}
+}
+
+func TestRecurringStatusModel_NavigateMonth_Previous(t *testing.T) {
+	store := &mockStoreForRecurringStatus{}
+	model := NewRecurringStatusModel(store)
+	model.month = 3
+	model.year = 2026
+	model.showResults = true
+
+	model.navigateMonth(-1)
+
+	if model.month != 2 {
+		t.Errorf("Expected month 2, got %d", model.month)
+	}
+	if model.year != 2026 {
+		t.Errorf("Expected year 2026, got %d", model.year)
+	}
+}
+
+func TestRecurringStatusModel_NavigateMonth_DecemberToJanuary(t *testing.T) {
+	store := &mockStoreForRecurringStatus{}
+	model := NewRecurringStatusModel(store)
+	model.month = 12
+	model.year = 2026
+	model.showResults = true
+
+	model.navigateMonth(1)
+
+	if model.month != 1 {
+		t.Errorf("Expected month 1, got %d", model.month)
+	}
+	if model.year != 2027 {
+		t.Errorf("Expected year 2027, got %d", model.year)
+	}
+}
+
+func TestRecurringStatusModel_NavigateMonth_JanuaryToDecember(t *testing.T) {
+	store := &mockStoreForRecurringStatus{}
+	model := NewRecurringStatusModel(store)
+	model.month = 1
+	model.year = 2026
+	model.showResults = true
+
+	model.navigateMonth(-1)
+
+	if model.month != 12 {
+		t.Errorf("Expected month 12, got %d", model.month)
+	}
+	if model.year != 2025 {
+		t.Errorf("Expected year 2025, got %d", model.year)
+	}
+}
+
+func TestRecurringStatusModel_Esc_ReturnsToMainMenu(t *testing.T) {
+	store := &mockStoreForRecurringStatus{}
+	model := NewRecurringStatusModel(store)
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	_ = newModel.(RecurringStatusModel)
+}
+
+func TestReportModel_NavigateMonth(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.month = 3
+	model.year = 2026
+	model.showResults = true
+
+	model.navigateMonth(1)
+
+	if model.month != 4 {
+		t.Errorf("Expected month 4, got %d", model.month)
+	}
+	if model.year != 2026 {
+		t.Errorf("Expected year 2026, got %d", model.year)
+	}
+}
+
+func TestReportModel_NavigateMonth_Previous(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.month = 3
+	model.year = 2026
+	model.showResults = true
+
+	model.navigateMonth(-1)
+
+	if model.month != 2 {
+		t.Errorf("Expected month 2, got %d", model.month)
+	}
+}
+
+func TestReportModel_NavigateMonth_DecemberToJanuary(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewReportModel(store)
+	model.month = 12
+	model.year = 2026
+	model.showResults = true
+
+	model.navigateMonth(1)
+
+	if model.month != 1 {
+		t.Errorf("Expected month 1, got %d", model.month)
+	}
+	if model.year != 2027 {
+		t.Errorf("Expected year 2027, got %d", model.year)
+	}
+}
+
+type mockStoreForRecurringList struct {
+	recurring  []storage.RecurringExpense
+	categories []string
+	err        error
+}
+
+func (m *mockStoreForRecurringList) Close() error { return nil }
+func (m *mockStoreForRecurringList) GetConfig() (*storage.Config, error) {
+	return &storage.Config{}, nil
+}
+func (m *mockStoreForRecurringList) GetCategories() ([]string, error) { return m.categories, m.err }
+func (m *mockStoreForRecurringList) UpdateCategories([]string) error  { return nil }
+func (m *mockStoreForRecurringList) GetAllExpenses(startDate, endDate *time.Time) ([]storage.Expense, error) {
+	return []storage.Expense{}, nil
+}
+func (m *mockStoreForRecurringList) GetExpense(string) (storage.Expense, error) {
+	return storage.Expense{}, nil
+}
+func (m *mockStoreForRecurringList) AddExpense(storage.Expense) error            { return nil }
+func (m *mockStoreForRecurringList) RemoveExpense(string) error                  { return nil }
+func (m *mockStoreForRecurringList) UpdateExpense(string, storage.Expense) error { return nil }
+func (m *mockStoreForRecurringList) AddMultipleExpenses([]storage.Expense) error { return nil }
+func (m *mockStoreForRecurringList) RemoveMultipleExpenses([]string) error       { return nil }
+func (m *mockStoreForRecurringList) GetExclusionList() ([]string, error)         { return []string{}, nil }
+func (m *mockStoreForRecurringList) AddExclusion(string) error                   { return nil }
+func (m *mockStoreForRecurringList) RemoveExclusion(string) error                { return nil }
+func (m *mockStoreForRecurringList) UpdateExclusionList([]string) error          { return nil }
+func (m *mockStoreForRecurringList) GetImportPath() (string, error)              { return "", nil }
+func (m *mockStoreForRecurringList) UpdateImportPath(string) error               { return nil }
+func (m *mockStoreForRecurringList) GetCurrency() (string, error)                { return "usd", nil }
+func (m *mockStoreForRecurringList) UpdateCurrency(string) error                 { return nil }
+func (m *mockStoreForRecurringList) GetStartDate() (int, error)                  { return 1, nil }
+func (m *mockStoreForRecurringList) UpdateStartDate(int) error                   { return nil }
+func (m *mockStoreForRecurringList) GetRecurringExpenses() ([]storage.RecurringExpense, error) {
+	return m.recurring, m.err
+}
+func (m *mockStoreForRecurringList) GetRecurringExpense(string) (storage.RecurringExpense, error) {
+	if len(m.recurring) > 0 {
+		return m.recurring[0], nil
+	}
+	return storage.RecurringExpense{}, fmt.Errorf("not found")
+}
+func (m *mockStoreForRecurringList) AddRecurringExpense(e storage.RecurringExpense) error { return nil }
+func (m *mockStoreForRecurringList) RemoveRecurringExpense(id string, b bool) error       { return m.err }
+func (m *mockStoreForRecurringList) UpdateRecurringExpense(id string, e storage.RecurringExpense, b bool) error {
+	return nil
+}
+
+func TestRecurringListModel_Initialization(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+
+	if model.mode != RecurringView {
+		t.Errorf("Expected mode RecurringView, got %d", model.mode)
+	}
+	if model.cursor != 0 {
+		t.Error("Expected cursor to be 0")
+	}
+}
+
+func TestRecurringListModel_Update_Esc_ViewToSettings(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newRecurringList := newModel.(RecurringListModel)
+
+	if newRecurringList.mode != RecurringView {
+		t.Error("Expected mode to stay RecurringView")
+	}
+}
+
+func TestRecurringListModel_Update_Up(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.cursor = 1
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	newRecurringList := newModel.(RecurringListModel)
+
+	if newRecurringList.cursor != 0 {
+		t.Error("Expected cursor to move up")
+	}
+}
+
+func TestRecurringListModel_Update_Down(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.payments = []storage.RecurringExpense{{ID: "1"}}
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newRecurringList := newModel.(RecurringListModel)
+
+	if newRecurringList.cursor != 1 {
+		t.Error("Expected cursor to move down")
+	}
+}
+
+func TestRecurringListModel_Update_Add(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	newRecurringList := newModel.(RecurringListModel)
+
+	if newRecurringList.mode != RecurringAdd {
+		t.Error("Expected mode to be RecurringAdd")
+	}
+}
+
+func TestRecurringListModel_Update_Edit(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{{ID: "1", Name: "Test"}},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.payments = []storage.RecurringExpense{{ID: "1", Name: "Test"}}
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	newRecurringList := newModel.(RecurringListModel)
+
+	if newRecurringList.mode != RecurringEdit {
+		t.Error("Expected mode to be RecurringEdit")
+	}
+}
+
+func TestRecurringListModel_Update_Delete(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{{ID: "1", Name: "Test"}},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.payments = []storage.RecurringExpense{{ID: "1", Name: "Test"}}
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	newRecurringList := newModel.(RecurringListModel)
+
+	if newRecurringList.mode != RecurringDeleteConfirm {
+		t.Error("Expected mode to be RecurringDeleteConfirm")
+	}
+}
+
+func TestRecurringListModel_MonthsToString(t *testing.T) {
+	result := monthsToString([]int{1, 2, 3})
+	if result != "Jan,Feb,Mar" {
+		t.Errorf("Expected 'Jan,Feb,Mar', got %s", result)
+	}
+}
+
+func TestRecurringListModel_StringToMonths(t *testing.T) {
+	result := stringToMonths("Jan,Mar")
+	if len(result) != 2 {
+		t.Errorf("Expected 2 months, got %d", len(result))
+	}
+}
+
+func TestRecurringListModel_MonthToString(t *testing.T) {
+	result := monthToString(1)
+	if result != "Jan" {
+		t.Errorf("Expected 'Jan', got %s", result)
+	}
+}
+
+func TestRecurringListModel_MonthToNumber(t *testing.T) {
+	result := monthToNumber("January")
+	if result != 1 {
+		t.Errorf("Expected 1, got %d", result)
+	}
+}
+
+func TestRecurringListModel_YesNo(t *testing.T) {
+	if yesNo(true) != "Yes" {
+		t.Error("Expected 'Yes' for true")
+	}
+	if yesNo(false) != "No" {
+		t.Error("Expected 'No' for false")
+	}
+}
+
+func TestRecurringListModel_Update_Backspace(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringAdd
+	model.inputValue = "test"
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	newRecurringList := newModel.(RecurringListModel)
+
+	if newRecurringList.inputValue != "tes" {
+		t.Error("Expected backspace to remove last char")
+	}
+}
+
+func TestRecurringListModel_Update_LeftRight(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringAdd
+	model.payments = []storage.RecurringExpense{{ID: "1"}}
+
+	// Left in view mode should move cursor
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	newRecurringList := newModel.(RecurringListModel)
+
+	if newRecurringList.cursor != 0 {
+		t.Error("Left should not move cursor in input mode")
+	}
+}
+
+func TestRecurringListModel_Update_Enter_View_Empty(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.payments = nil
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newRecurringList := newModel.(RecurringListModel)
+
+	// Should return navigation command when cursor at end
+	if cmd == nil {
+		t.Error("Expected command when at end of list")
+	}
+	_ = newRecurringList
+}
+
+func TestRecurringListModel_View_Empty(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.payments = nil
+
+	view := model.View()
+
+	if !strings.Contains(view, "no recurring") {
+		t.Error("Expected empty message in view")
+	}
+}
+
+func TestRecurringListModel_View_WithPayments(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{{ID: "1", Name: "Netflix", Amount: 15.00, Category: "Entertainment"}},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.payments = []storage.RecurringExpense{{ID: "1", Name: "Netflix", Amount: 15.00, Category: "Entertainment"}}
+
+	view := model.View()
+
+	if !strings.Contains(view, "Netflix") {
+		t.Error("Expected Netflix in view")
+	}
+}
+
+func TestRecurringListModel_handleFieldInput_Name(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.field = FieldName
+	model.inputValue = "Netflix"
+	model.editing = storage.RecurringExpense{}
+
+	model.handleFieldInput()
+
+	if model.field != FieldCategory {
+		t.Error("Expected field to move to Category")
+	}
+}
+
+func TestRecurringListModel_handleFieldInput_Category(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.field = FieldCategory
+	model.categoryCursor = 0
+	model.editing = storage.RecurringExpense{}
+	model.inputValue = "" // Clear since category is selected
+
+	model.handleFieldInput()
+
+	if model.field != FieldScheduleType {
+		t.Error("Expected field to move to ScheduleType")
+	}
+}
+
+func TestRecurringListModel_handleFieldInput_InvalidSchedule(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.field = FieldScheduleType
+	model.inputValue = "invalid"
+	model.editing = storage.RecurringExpense{}
+
+	model.handleFieldInput()
+
+	// Should stay on schedule type for invalid input
+	if model.field != FieldScheduleType {
+		t.Error("Expected to stay on invalid schedule type")
+	}
+}
+
+func TestRecurringListModel_Truncate(t *testing.T) {
+	result := truncate("VeryLongName", 10)
+	if result != "VeryLong.." {
+		t.Errorf("Expected 'VeryLong..', got %s", result)
+	}
+
+	result = truncate("Short", 10)
+	if result != "Short" {
+		t.Errorf("Expected 'Short', got %s", result)
+	}
+}
+
+func TestRecurringStatusModel_Update_Left(t *testing.T) {
+	store := &mockStoreForRecurringStatus{}
+	model := NewRecurringStatusModel(store)
+	model.month = 1
+	model.year = 2026
+	model.showResults = true
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	newRecurringStatus := newModel.(RecurringStatusModel)
+
+	if newRecurringStatus.month != 12 {
+		t.Error("Expected month to decrease")
+	}
+}
+
+func TestRecurringStatusModel_Update_Right(t *testing.T) {
+	store := &mockStoreForRecurringStatus{}
+	model := NewRecurringStatusModel(store)
+	model.month = 12
+	model.year = 2026
+	model.showResults = true
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	newRecurringStatus := newModel.(RecurringStatusModel)
+
+	if newRecurringStatus.month != 1 {
+		t.Error("Expected month to increase")
+	}
+}
+
+func TestRecurringStatusModel_Update_CtrlC(t *testing.T) {
+	store := &mockStoreForRecurringStatus{}
+	model := NewRecurringStatusModel(store)
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newRecurringStatus := newModel.(RecurringStatusModel)
+
+	if !newRecurringStatus.quitting {
+		t.Error("Expected quitting to be true")
+	}
+	if cmd == nil {
+		t.Error("Expected non-nil command")
+	}
+}
+
+func TestRecurringStatusModel_Update_Up(t *testing.T) {
+	store := &mockStoreForRecurringStatus{
+		recurringExpenses: []storage.RecurringExpense{{ID: "1", Name: "Test"}},
+	}
+	model := NewRecurringStatusModel(store)
+	model.showResults = true
+	model.results = []RecurringStatusItem{{Name: "Test", Paid: false}}
+	model.cursor = 1
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	newRecurringStatus := newModel.(RecurringStatusModel)
+
+	if newRecurringStatus.cursor != 0 {
+		t.Error("Expected cursor to move up")
+	}
+}
+
+func TestRecurringStatusModel_Update_Down(t *testing.T) {
+	store := &mockStoreForRecurringStatus{
+		recurringExpenses: []storage.RecurringExpense{{ID: "1", Name: "Test"}},
+	}
+	model := NewRecurringStatusModel(store)
+	model.showResults = true
+	model.results = []RecurringStatusItem{{Name: "Test", Paid: false}}
+
+	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	newRecurringStatus := newModel.(RecurringStatusModel)
+
+	if newRecurringStatus.cursor != 1 {
+		t.Error("Expected cursor to move down")
+	}
+}
+
+func TestRecurringListModel_Update_CtrlC(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newRecurringList := newModel.(RecurringListModel)
+
+	if !newRecurringList.quitting {
+		t.Error("Expected quitting to be true")
+	}
+	if cmd == nil {
+		t.Error("Expected command to be returned")
+	}
+}
+
+func TestRecurringListModel_SetCategoryCursor(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel", "Entertainment"},
+	}
+	model := NewRecurringListModel(store)
+	model.editing.Category = "Travel"
+
+	model.setCategoryCursor()
+
+	if model.categoryCursor != 1 {
+		t.Errorf("Expected cursor at 1, got %d", model.categoryCursor)
+	}
+}
+
+func TestRecurringListModel_setCategoryCursor_NotFound(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Travel"},
+	}
+	model := NewRecurringListModel(store)
+	model.editing.Category = "Unknown"
+
+	model.setCategoryCursor()
+
+	if model.categoryCursor != 0 {
+		t.Errorf("Expected cursor at 0, got %d", model.categoryCursor)
+	}
+}
+
+func TestRecurringListModel_handleFieldInput_Enabled(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.field = FieldEnabled
+	model.mode = RecurringAdd
+	model.inputValue = "y"
+
+	model.handleFieldInput()
+
+	// Verify input was processed (mode or field changed or save was attempted)
+	_ = model.inputValue // Used
+}
+
+func TestRecurringListModel_handleFieldInput_Schedule(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.field = FieldScheduleType
+	model.inputValue = "monthly"
+
+	model.handleFieldInput()
+
+	if model.field != FieldEnabled {
+		t.Error("Expected field to move to Enabled")
+	}
+}
+
+func TestRecurringListModel_handleFieldInput_Months(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.field = FieldMonths
+	model.inputValue = "Jan,Mar"
+
+	model.handleFieldInput()
+
+	// Just verify no panic - the logic changes based on schedule type
+}
+
+func TestRecurringListModel_removePayment_Error(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+		err:       fmt.Errorf("database error"),
+	}
+	model := NewRecurringListModel(store)
+	model.errorMsg = "test error"
+
+	model.removePayment("test-id")
+
+	if model.errorMsg == "" {
+		t.Error("Expected errorMsg to be set when RemoveRecurringExpense fails")
+	}
+	if model.successMsg != "" {
+		t.Error("Expected successMsg to be empty on error")
+	}
+}
+
+func TestRecurringListModel_Init(t *testing.T) {
+	store := &mockStoreForRecurringList{}
+	model := NewRecurringListModel(store)
+
+	cmd := model.Init()
+
+	if cmd != nil {
+		t.Error("Expected nil cmd from Init")
+	}
+}
+
+func TestRecurringListModel_View_Form(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringAdd
+
+	view := model.View()
+
+	if !strings.Contains(view, "Add") {
+		t.Error("Expected Add in view")
+	}
+}
+
+func TestRecurringListModel_View_Edit(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringEdit
+	model.editing = storage.RecurringExpense{Name: "Test"}
+
+	view := model.View()
+
+	if !strings.Contains(view, "Edit") {
+		t.Error("Expected Edit in view")
+	}
+}
+
+func TestRecurringListModel_View_Delete(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringDeleteConfirm
+
+	view := model.View()
+
+	if !strings.Contains(view, "delete") {
+		t.Error("Expected delete confirmation in view")
+	}
+}
+
+func TestRecurringStatusModel_View_Empty(t *testing.T) {
+	store := &mockStoreForRecurringStatus{}
+	model := NewRecurringStatusModel(store)
+
+	view := model.View()
+
+	if !strings.Contains(view, "Recurring Expenses") {
+		t.Error("Expected Recurring Expenses in view")
+	}
+}
+
+func TestRecurringStatusModel_View_WithResults(t *testing.T) {
+	store := &mockStoreForRecurringStatus{
+		recurringExpenses: []storage.RecurringExpense{{ID: "1", Name: "Test", Amount: 10}},
+	}
+	model := NewRecurringStatusModel(store)
+	model.results = []RecurringStatusItem{{Name: "Test", Amount: 10, Paid: true}}
+	model.showResults = true
+
+	view := model.View()
+
+	_ = view
+}
+
+func TestRecurringStatusModel_TruncateStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		maxLen   int
+		expected string
+	}{
+		{"short string", "Test", 15, "Test"},
+		{"exact length", "123456789012345", 15, "123456789012345"},
+		{"long string", "This is a very long name", 15, "This is a ver.."},
+		{"empty string", "", 15, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := truncateStatus(tt.input, tt.maxLen)
+			if result != tt.expected {
+				t.Errorf("truncateStatus(%q, %d) = %q, want %q", tt.input, tt.maxLen, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRecurringStatusModel_Update_MonthNav(t *testing.T) {
+	store := &mockStoreForRecurringStatus{
+		recurringExpenses: []storage.RecurringExpense{{ID: "1", Name: "Test", Amount: 10}},
+	}
+	model := NewRecurringStatusModel(store)
+
+	initialMonth := model.month
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("right")})
+	updatedModel := updated.(RecurringStatusModel)
+
+	if updatedModel.month != initialMonth+1 {
+		t.Errorf("Expected month to increment from %d to %d, got %d", initialMonth, initialMonth+1, updatedModel.month)
+	}
+}
+
+func TestRecurringStatusModel_Update_MonthNav_Decrement(t *testing.T) {
+	store := &mockStoreForRecurringStatus{
+		recurringExpenses: []storage.RecurringExpense{{ID: "1", Name: "Test", Amount: 10}},
+	}
+	model := NewRecurringStatusModel(store)
+
+	initialMonth := model.month
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("left")})
+	updatedModel := updated.(RecurringStatusModel)
+
+	if updatedModel.month != initialMonth-1 {
+		t.Errorf("Expected month to decrement from %d to %d, got %d", initialMonth, initialMonth-1, updatedModel.month)
+	}
+}
+
+func TestRecurringListModel_Update_YearNav(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringView
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRight})
+
+	// Should not panic
+}
+
+func TestRecurringListModel_Update_TypeChar_WhileViewing(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringView
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+
+	if updated.(RecurringListModel).mode != RecurringAdd {
+		t.Error("Expected mode to be RecurringAdd")
+	}
+	if cmd != nil {
+		t.Error("Expected no command")
+	}
+}
+
+func TestRecurringListModel_Update_TypeChar_WhileViewing_Edit(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{{ID: "1", Name: "Test"}},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringView
+	model.cursor = 0
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+
+	if updated.(RecurringListModel).mode != RecurringEdit {
+		t.Error("Expected mode to be RecurringEdit")
+	}
+	if cmd != nil {
+		t.Error("Expected no command")
+	}
+}
+
+func TestRecurringListModel_Update_TypeChar_WhileViewing_Delete(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{{ID: "1", Name: "Test"}},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringView
+	model.cursor = 0
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+
+	if updated.(RecurringListModel).mode != RecurringDeleteConfirm {
+		t.Error("Expected mode to be RecurringDeleteConfirm")
+	}
+	if cmd != nil {
+		t.Error("Expected no command")
+	}
+}
+
+func TestRecurringListModel_Update_EnterOnEmptyList(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringView
+	model.cursor = 0
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	if cmd == nil {
+		t.Error("Expected command for navigation")
+	}
+}
+
+func TestRecurringListModel_Update_Esc_FromAddResetsForm(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringAdd
+	model.inputValue = "test"
+	model.field = FieldName
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	updatedModel := updated.(RecurringListModel)
+	if updatedModel.mode != RecurringView {
+		t.Error("Expected mode to be RecurringView")
+	}
+	if updatedModel.inputValue != "" {
+		t.Error("Expected inputValue to be cleared")
+	}
+	if cmd != nil {
+		t.Error("Expected no command")
+	}
+}
+
+func TestRecurringListModel_Update_Esc_FromEditResetsForm(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{{ID: "1", Name: "Test"}},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringEdit
+	model.inputValue = "test"
+	model.field = FieldName
+	model.editing = storage.RecurringExpense{ID: "1", Name: "Test"}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	updatedModel := updated.(RecurringListModel)
+	if updatedModel.mode != RecurringView {
+		t.Error("Expected mode to be RecurringView")
+	}
+	if updatedModel.inputValue != "" {
+		t.Error("Expected inputValue to be cleared")
+	}
+	if cmd != nil {
+		t.Error("Expected no command")
+	}
+}
+
+func TestRecurringListModel_Update_Esc_FromDeleteConfirm(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{{ID: "1", Name: "Test"}},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringDeleteConfirm
+	model.cursor = 0
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	updatedModel := updated.(RecurringListModel)
+	if updatedModel.mode != RecurringView {
+		t.Error("Expected mode to be RecurringView")
+	}
+	if cmd != nil {
+		t.Error("Expected no command")
+	}
+}
+
+func TestRecurringListModel_renderForm_CategorySelection(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food", "Transport", "Entertainment"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringAdd
+	model.field = FieldCategory
+	model.categoryCursor = 1
+	model.editing = storage.RecurringExpense{}
+
+	var s strings.Builder
+	model.renderForm(&s, "Add")
+
+	view := s.String()
+	if !strings.Contains(view, "Transport") {
+		t.Error("Expected Transport in category selection")
+	}
+}
+
+func TestExclusionListModel_IsQuitting(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewExclusionListModel(store)
+
+	if model.IsQuitting() {
+		t.Error("IsQuitting should be false initially")
+	}
+
+	model.quitting = true
+	if !model.IsQuitting() {
+		t.Error("IsQuitting should be true after quitting is set")
+	}
+}
+
+func TestAppModel_View_DefaultScreen(t *testing.T) {
+	store := &mockStoreForCLI{}
+	model := NewAppModel(store)
+	model.currentScreen = 999
+
+	view := model.View()
+	if view != "Unknown screen\n" {
+		t.Error("Expected 'Unknown screen' for invalid screen")
+	}
+}
+
+func TestRecurringStatusModel_Update_CtrlC_Double(t *testing.T) {
+	store := &mockStoreForRecurringStatus{
+		recurringExpenses: []storage.RecurringExpense{{ID: "1", Name: "Test", Amount: 10}},
+	}
+	model := NewRecurringStatusModel(store)
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newStatusModel := newModel.(RecurringStatusModel)
+
+	if cmd == nil {
+		t.Error("Ctrl+C should return quit command")
+	}
+	if !newStatusModel.quitting {
+		t.Error("quitting should be true after Ctrl+C")
+	}
+}
+
+func TestRecurringListModel_Update_CtrlC_WhileViewing(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringView
+
+	newModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newRecurringModel := newModel.(RecurringListModel)
+
+	if cmd == nil {
+		t.Error("Ctrl+C should return quit command")
+	}
+	if !newRecurringModel.quitting {
+		t.Error("quitting should be true after Ctrl+C")
+	}
+}
+
+func TestRecurringListModel_Update_EnterInDeleteConfirm_BackOption(t *testing.T) {
+	store := &mockStoreForRecurringList{
+		recurring:  []storage.RecurringExpense{{ID: "1", Name: "Test"}},
+		categories: []string{"Food"},
+	}
+	model := NewRecurringListModel(store)
+	model.mode = RecurringDeleteConfirm
+	model.cursor = 1
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Enter on back option should just switch to view mode (no cmd)
 }

@@ -31,14 +31,23 @@ type ReportModel struct {
 }
 
 func NewReportModel(store storage.Storage) ReportModel {
-	currentYear := time.Now().Year()
+	now := time.Now()
+	month := int(now.Month()) - 1
+	year := now.Year()
+	if month < 1 {
+		month = 12
+		year--
+	}
 	return ReportModel{
-		storage:   store,
-		inputYear: strconv.Itoa(currentYear),
+		storage:    store,
+		month:    month,
+		year:     year,
+		showResults: true,
 	}
 }
 
 func (m ReportModel) Init() tea.Cmd {
+	m.executeReport()
 	return nil
 }
 
@@ -53,45 +62,34 @@ func (m ReportModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigationMsg{Destination: ScreenMainMenu}
 			}
+		case "left", "right":
+			if m.showResults {
+				delta := 1
+				if msg.String() == "left" {
+					delta = -1
+				}
+				m.navigateMonth(delta)
+			}
 		case "up", "k":
-			if !m.showResults {
+			if m.showResults {
 				if m.cursor > 0 {
 					m.cursor--
+				} else {
+					m.cursor = 0
 				}
 			}
 		case "down", "j":
-			if !m.showResults {
-				if m.cursor < 3 {
+			if m.showResults {
+				if m.cursor < len(m.results)-1 {
 					m.cursor++
+				} else {
+					m.cursor = 0
 				}
 			}
 		case "enter":
 			if m.showResults {
 				return m, func() tea.Msg {
 					return NavigationMsg{Destination: ScreenMainMenu}
-				}
-			}
-			switch m.cursor {
-			case 0:
-				m.inputtingFor = 1
-			case 1:
-				m.inputtingFor = 2
-			case 2:
-				m.executeReport()
-			}
-		case "backspace":
-			if m.inputtingFor == 1 && len(m.inputMonth) > 0 {
-				m.inputMonth = m.inputMonth[:len(m.inputMonth)-1]
-			} else if m.inputtingFor == 2 && len(m.inputYear) > 0 {
-				m.inputYear = m.inputYear[:len(m.inputYear)-1]
-			}
-		default:
-			if !m.showResults {
-				switch m.inputtingFor {
-				case 1:
-					m.inputMonth += msg.String()
-				case 2:
-					m.inputYear += msg.String()
 				}
 			}
 		}
@@ -102,32 +100,32 @@ func (m ReportModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *ReportModel) executeReport() {
 	m.errorMsg = ""
 
-	month, err := strconv.Atoi(strings.TrimSpace(m.inputMonth))
-	if err != nil || month < 1 || month > 12 {
-		m.errorMsg = "Invalid month (must be 1-12)"
-		return
-	}
-
-	year, err := strconv.Atoi(strings.TrimSpace(m.inputYear))
-	if err != nil || year < 1 {
-		m.errorMsg = "Invalid year"
-		return
-	}
-
-	results, err := storage.GetExpensesByMonthGroupedByCategory(m.storage, year, month)
+	results, err := storage.GetExpensesByMonthGroupedByCategory(m.storage, m.year, m.month)
 	if err != nil {
 		m.errorMsg = fmt.Sprintf("Failed to get expenses: %v", err)
 		return
 	}
 
 	m.results = results
-	m.month = month
-	m.year = year
 	m.total = 0
 	for _, r := range results {
 		m.total += r.Total
 	}
 	m.showResults = true
+}
+
+func (m *ReportModel) navigateMonth(delta int) {
+	m.month += delta
+	if m.month > 12 {
+		m.month = 1
+		m.year++
+	} else if m.month < 1 {
+		m.month = 12
+		m.year--
+	}
+	m.inputMonth = strconv.Itoa(m.month)
+	m.inputYear = strconv.Itoa(m.year)
+	m.executeReport()
 }
 
 func (m ReportModel) View() string {
@@ -136,6 +134,11 @@ func (m ReportModel) View() string {
 	s.WriteString(reportLogo + "\n\n")
 
 	if m.showResults {
+		if m.errorMsg != "" {
+			fmt.Fprintf(&s, "Error: %s\n", m.errorMsg)
+			return s.String()
+		}
+
 		monthName := time.Month(m.month).String()
 		fmt.Fprintf(&s, "%s %d Totals\n", monthName, m.year)
 		s.WriteString("─────────────────────────────\n")
@@ -146,58 +149,11 @@ func (m ReportModel) View() string {
 
 		s.WriteString("─────────────────────────────\n")
 		fmt.Fprintf(&s, "%-15s $%9.2f\n", "TOTAL", m.total)
-		s.WriteString("\nPress any key to return\n")
+		s.WriteString("\n←→ Previous/Next Month  Esc to Menu\n")
 		return s.String()
 	}
 
-	s.WriteString("Monthly Report\n")
-	s.WriteString("─────────────────────────────\n")
-
-	monthDisplay := m.inputMonth
-	if monthDisplay == "" {
-		monthDisplay = "  "
-	}
-	fmt.Fprintf(&s, "Enter month (1-12): %s\n", monthDisplay)
-
-	yearDisplay := m.inputYear
-	if yearDisplay == "" {
-		yearDisplay = "    "
-	}
-	fmt.Fprintf(&s, "Enter year (e.g. 2024): %s\n", yearDisplay)
-
-	if m.errorMsg != "" {
-		fmt.Fprintf(&s, "\nError: %s\n", m.errorMsg)
-	}
-
-	s.WriteString("\n")
-
-	cursor := "  "
-	if m.cursor == 0 {
-		cursor = "> "
-	}
-	fmt.Fprintf(&s, "%s[Month]\n", cursor)
-
-	cursor = "  "
-	if m.cursor == 1 {
-		cursor = "> "
-	}
-	fmt.Fprintf(&s, "%s[Year]\n", cursor)
-
-	cursor = "  "
-	if m.cursor == 2 {
-		cursor = "> "
-	}
-	fmt.Fprintf(&s, "%s[View Report]\n", cursor)
-
-	cursor = "  "
-	if m.cursor == 3 {
-		cursor = "> "
-	}
-	fmt.Fprintf(&s, "%s[Back]\n", cursor)
-
-	s.WriteString("\nArrow keys navigate, Enter to select, Esc to go back\n")
-
-	return s.String()
+	return ""
 }
 
 func (m ReportModel) IsQuitting() bool {

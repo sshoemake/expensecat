@@ -32,6 +32,7 @@ const (
 	MenuImport = iota
 	MenuExpenseList
 	MenuReport
+	MenuRecurringStatus
 	MenuSettings
 	MenuQuit
 )
@@ -50,6 +51,7 @@ func NewMainMenuModel() MainMenuModel {
 			"Import Expenses",
 			"Manage Expenses",
 			"View Monthly Totals",
+			"View Recurring Expenses",
 			"Settings",
 			"Quit",
 		},
@@ -95,6 +97,11 @@ func (m MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor == MenuReport {
 				return m, func() tea.Msg {
 					return NavigationMsg{Destination: ScreenReport}
+				}
+			}
+			if m.cursor == MenuRecurringStatus {
+				return m, func() tea.Msg {
+					return NavigationMsg{Destination: ScreenRecurringStatus}
 				}
 			}
 			if m.cursor == MenuSettings {

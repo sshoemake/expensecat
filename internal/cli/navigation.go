@@ -13,4 +13,6 @@ const (
 	ScreenImportPath
 	ScreenCategoryList
 	ScreenExpenseList
+	ScreenRecurringList
+	ScreenRecurringStatus
 )

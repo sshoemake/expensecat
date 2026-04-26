@@ -1,41 +1,100 @@
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version (e.g. v1.0.0)"
-        required: true
+  pull_request:
+    types: [closed]
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
-  validate:
+  prepare:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.setver.outputs.version }}
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v5
-        
-      - id: setver
-        run: echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+      version: ${{ steps.bump.outputs.version }}
 
-      - name: Validate version format
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # needed for tags
+
+      - name: Get latest tag
+        id: latest
         run: |
-          if [[ ! "${{ github.event.inputs.version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid version"
+          git fetch --tags
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Determine bump type from labels (strict + skip)
+        id: bump_type
+        run: |
+          LABELS='${{ toJson(github.event.pull_request.labels) }}'
+
+          if echo "$LABELS" | grep -q '"name":"no-release"'; then
+            echo "Skipping release"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          COUNT=0
+          TYPE=""
+
+          for label in major minor patch; do
+            if echo "$LABELS" | grep -q "\"name\":\"$label\""; then
+              COUNT=$((COUNT+1))
+              TYPE="$label"
+            fi
+          done
+
+          if [ "$COUNT" -ne 1 ]; then
+            echo "❌ Must have exactly one of: major, minor, patch"
             exit 1
           fi
 
-      - name: Check tag doesn't exist
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
+
+      - name: Calculate next version
+        id: bump
         run: |
-          git fetch --tags
-          git ls-remote --tags origin | grep "${{ github.event.inputs.version }}" && exit 1 || true
+          CURRENT=${{ steps.latest.outputs.tag }}
+          TYPE=${{ steps.bump_type.outputs.type }}
+
+          VERSION=${CURRENT#v}
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+
+          if [ "$TYPE" = "major" ]; then
+            MAJOR=$((MAJOR+1))
+            MINOR=0
+            PATCH=0
+          elif [ "$TYPE" = "minor" ]; then
+            MINOR=$((MINOR+1))
+            PATCH=0
+          else
+            PATCH=$((PATCH+1))
+          fi
+
+          NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Next version: $NEW_VERSION"
+
+      - name: Ensure tag doesn't already exist
+        run: |
+          git tag -l | grep "${{ steps.bump.outputs.version }}" && exit 1 || true
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git tag ${{ steps.bump.outputs.version }}
+          git push origin ${{ steps.bump.outputs.version }}
 
   build-and-release:
-    needs: validate
+    needs: prepare
     runs-on: ubuntu-latest
 
     strategy:
@@ -45,8 +104,6 @@ jobs:
             arch: amd64
           - os: linux
             arch: arm64
-          - os: darwin
-            arch: amd64
           - os: darwin
             arch: arm64
 
@@ -59,14 +116,13 @@ jobs:
 
       - name: Build and package
         env:
-          VERSION: ${{ github.event.inputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -e
 
           OS="${{ matrix.os }}"
           ARCH="${{ matrix.arch }}"
 
-          # Normalize OS name for release artifacts
           if [ "$OS" = "darwin" ]; then
             OS_NAME="macos"
           else
@@ -79,22 +135,19 @@ jobs:
 
           OUTPUT="$DIST/${BIN_NAME}"
 
-          # Build
           GOOS=$OS GOARCH=$ARCH \
           go build \
             -ldflags="-X main.version=${VERSION}" \
             -o "$OUTPUT" \
             .
 
-          # Package
           ARCHIVE="${BIN_NAME}-${VERSION}-${OS_NAME}-${ARCH}.tar.gz"
-
           tar -czf "$ARCHIVE" -C "$DIST" "$BIN_NAME"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.version }}
+          tag_name: ${{ needs.prepare.outputs.version }}
           files: "*.tar.gz"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

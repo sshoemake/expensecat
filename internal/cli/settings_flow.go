@@ -16,6 +16,7 @@ const (
 	SettingsExclusionList = iota
 	SettingsImportPath
 	SettingsCategoryList
+	SettingsRecurringList
 	SettingsBack
 )
 
@@ -52,7 +53,7 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "down", "j":
-			if m.cursor < 3 {
+			if m.cursor < 4 {
 				m.cursor++
 			}
 		case "enter":
@@ -69,6 +70,11 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor == SettingsCategoryList {
 				return m, func() tea.Msg {
 					return NavigationMsg{Destination: ScreenCategoryList}
+				}
+			}
+			if m.cursor == SettingsRecurringList {
+				return m, func() tea.Msg {
+					return NavigationMsg{Destination: ScreenRecurringList}
 				}
 			}
 			if m.cursor == SettingsBack {
@@ -88,7 +94,7 @@ func (m SettingsModel) View() string {
 	s.WriteString("Settings\n")
 	s.WriteString("─────────────────────────────\n")
 
-	choices := []string{"Exclusion List", "Import Path", "Category List", "Back"}
+	choices := []string{"Exclusion List", "Import Path", "Category List", "Recurring Expenses", "Back"}
 	for i, choice := range choices {
 		cursor := "  "
 		if m.cursor == i {
@@ -250,8 +256,14 @@ func (m ExclusionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if (m.mode == ExclusionListAdd || m.mode == ExclusionListEdit) && m.inputValue != "" {
 				m.inputValue = m.inputValue[:len(m.inputValue)-1]
 			}
+		case "left", "right":
+			// Ignore arrow keys in exclusion list input modes
+		case " ":
+			if (m.mode == ExclusionListAdd || m.mode == ExclusionListEdit) && msg.Type == tea.KeySpace {
+				m.inputValue += " "
+			}
 		default:
-			if (m.mode == ExclusionListAdd || m.mode == ExclusionListEdit) && msg.String() != "" {
+			if (m.mode == ExclusionListAdd || m.mode == ExclusionListEdit) && msg.Type == tea.KeyRunes {
 				m.inputValue += msg.String()
 			}
 			if m.mode == ExclusionListView {

@@ -11,32 +11,36 @@ import (
 const defaultBasePath = "~/Downloads/Expense-Files"
 
 type AppModel struct {
-	currentScreen    int
-	store            storage.Storage
-	basePath         string
-	mainMenu         MainMenuModel
-	importModel      ImportModel
-	reportModel      ReportModel
-	settingsModel    SettingsModel
-	exclusionModel   ExclusionListModel
-	importPathModel  ImportPathModel
-	categoryModel    CategoryListModel
-	expenseListModel ExpenseListModel
+	currentScreen        int
+	store                storage.Storage
+	basePath             string
+	mainMenu             MainMenuModel
+	importModel          ImportModel
+	reportModel          ReportModel
+	settingsModel        SettingsModel
+	exclusionModel       ExclusionListModel
+	importPathModel      ImportPathModel
+	categoryModel        CategoryListModel
+	expenseListModel     ExpenseListModel
+	recurringModel       RecurringListModel
+	recurringStatusModel RecurringStatusModel
 }
 
 func NewAppModel(store storage.Storage) AppModel {
 	return AppModel{
-		currentScreen:    ScreenMainMenu,
-		store:            store,
-		basePath:         getBasePath(store),
-		mainMenu:         NewMainMenuModel(),
-		importModel:      NewImportModel(store, getBasePath(store)),
-		reportModel:      NewReportModel(store),
-		settingsModel:    NewSettingsModel(store),
-		exclusionModel:   NewExclusionListModel(store),
-		importPathModel:  NewImportPathModel(store),
-		categoryModel:    NewCategoryListModel(store),
-		expenseListModel: NewExpenseListModel(store),
+		currentScreen:        ScreenMainMenu,
+		store:                store,
+		basePath:             getBasePath(store),
+		mainMenu:             NewMainMenuModel(),
+		importModel:          NewImportModel(store, getBasePath(store)),
+		reportModel:          NewReportModel(store),
+		settingsModel:        NewSettingsModel(store),
+		exclusionModel:       NewExclusionListModel(store),
+		importPathModel:      NewImportPathModel(store),
+		categoryModel:        NewCategoryListModel(store),
+		expenseListModel:     NewExpenseListModel(store),
+		recurringModel:       NewRecurringListModel(store),
+		recurringStatusModel: NewRecurringStatusModel(store),
 	}
 }
 
@@ -77,6 +81,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.categoryModel = NewCategoryListModel(m.store)
 		case ScreenExpenseList:
 			m.expenseListModel = NewExpenseListModel(m.store)
+		case ScreenRecurringList:
+			m.recurringModel = NewRecurringListModel(m.store)
+		case ScreenRecurringStatus:
+			m.recurringStatusModel = NewRecurringStatusModel(m.store)
 		}
 		return m, nil
 
@@ -145,6 +153,22 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			return m, cmd
+
+		case ScreenRecurringList:
+			newModel, cmd := m.recurringModel.Update(msg)
+			m.recurringModel = newModel.(RecurringListModel)
+			if m.recurringModel.IsQuitting() {
+				return m, tea.Quit
+			}
+			return m, cmd
+
+		case ScreenRecurringStatus:
+			newModel, cmd := m.recurringStatusModel.Update(msg)
+			m.recurringStatusModel = newModel.(RecurringStatusModel)
+			if m.recurringStatusModel.IsQuitting() {
+				return m, tea.Quit
+			}
+			return m, cmd
 		}
 		return m, nil
 	}
@@ -171,6 +195,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScreenExpenseList:
 		newModel, _ := m.expenseListModel.Update(msg)
 		m.expenseListModel = *newModel.(*ExpenseListModel)
+	case ScreenRecurringList:
+		newModel, _ := m.recurringModel.Update(msg)
+		m.recurringModel = newModel.(RecurringListModel)
+	case ScreenRecurringStatus:
+		newModel, _ := m.recurringStatusModel.Update(msg)
+		m.recurringStatusModel = newModel.(RecurringStatusModel)
 	}
 
 	return m, nil
@@ -194,6 +224,10 @@ func (m AppModel) View() string {
 		return m.categoryModel.View()
 	case ScreenExpenseList:
 		return m.expenseListModel.View()
+	case ScreenRecurringList:
+		return m.recurringModel.View()
+	case ScreenRecurringStatus:
+		return m.recurringStatusModel.View()
 	default:
 		return "Unknown screen\n"
 	}

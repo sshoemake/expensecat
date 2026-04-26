@@ -147,8 +147,14 @@ func (m CategoryListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if (m.mode == CategoryListAdd || m.mode == CategoryListEdit) && m.inputValue != "" {
 				m.inputValue = m.inputValue[:len(m.inputValue)-1]
 			}
+		case "left", "right":
+			// Ignore arrow keys in category list input modes
+		case " ":
+			if (m.mode == CategoryListAdd || m.mode == CategoryListEdit) && msg.Type == tea.KeySpace {
+				m.inputValue += " "
+			}
 		default:
-			if (m.mode == CategoryListAdd || m.mode == CategoryListEdit) && msg.String() != "" {
+			if (m.mode == CategoryListAdd || m.mode == CategoryListEdit) && msg.Type == tea.KeyRunes {
 				m.inputValue += msg.String()
 			}
 			if m.mode == CategoryListView {
