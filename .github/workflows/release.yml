@@ -30,30 +30,33 @@ jobs:
       - name: Determine bump type from labels (strict + skip)
         id: bump_type
         run: |
+          set -euo pipefail
+
           LABELS='${{ toJson(github.event.pull_request.labels) }}'
 
-          if echo "$LABELS" | grep -q '"name":"no-release"'; then
+          # Check for skip first
+          SKIP=$(echo "$LABELS" | jq '[.[].name | select(. == "no-release")] | length')
+
+          if [ "$SKIP" -gt 0 ]; then
             echo "Skipping release"
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          COUNT=0
-          TYPE=""
+          # Extract matching version labels
+          MATCHES=$(echo "$LABELS" | jq -r '[.[].name | select(IN("major","minor","patch"))]')
 
-          for label in major minor patch; do
-            if echo "$LABELS" | grep -q "\"name\":\"$label\""; then
-              COUNT=$((COUNT+1))
-              TYPE="$label"
-            fi
-          done
+          COUNT=$(echo "$MATCHES" | jq 'length')
 
           if [ "$COUNT" -ne 1 ]; then
             echo "❌ Must have exactly one of: major, minor, patch"
+            echo "Found: $MATCHES"
             exit 1
           fi
 
-          echo "type=$TYPE" >> $GITHUB_OUTPUT
+          TYPE=$(echo "$MATCHES" | jq -r '.[0]')
+
+          echo "type=$TYPE" >> "$GITHUB_OUTPUT"
 
       - name: Calculate next version
         id: bump
