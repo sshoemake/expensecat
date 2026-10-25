@@ -5449,7 +5449,7 @@ func TestRecurringListModel_removePayment_Error(t *testing.T) {
 	store := &mockStoreForRecurringList{
 		recurring:  []storage.RecurringExpense{},
 		categories: []string{"Food"},
-		err:       fmt.Errorf("database error"),
+		err:        fmt.Errorf("database error"),
 	}
 	model := NewRecurringListModel(store)
 	model.errorMsg = "test error"

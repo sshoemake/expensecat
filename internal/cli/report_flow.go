@@ -13,7 +13,7 @@ import (
 
 var reportLogo = ` /\_/\  
 ( $.$ )  
-(  >💳 )  ExpenseCat`
+(  >💳 )  %s`
 
 type ReportModel struct {
 	storage      storage.Storage
@@ -39,9 +39,9 @@ func NewReportModel(store storage.Storage) ReportModel {
 		year--
 	}
 	return ReportModel{
-		storage:    store,
-		month:    month,
-		year:     year,
+		storage:     store,
+		month:       month,
+		year:        year,
 		showResults: true,
 	}
 }
@@ -131,7 +131,7 @@ func (m *ReportModel) navigateMonth(delta int) {
 func (m ReportModel) View() string {
 	var s strings.Builder
 
-	s.WriteString(reportLogo + "\n\n")
+	s.WriteString(renderLogo(reportLogo) + "\n\n")
 
 	if m.showResults {
 		if m.errorMsg != "" {

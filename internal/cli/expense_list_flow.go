@@ -18,7 +18,7 @@ const (
 
 var expenseListLogo = ` /\_/\  
 ( $.$ )  
-(  >💳 )  ExpenseCat`
+(  >💳 )  %s`
 
 const expensesPerPage = 10
 
@@ -438,7 +438,7 @@ func (m ExpenseListModel) View() string {
 func (m ExpenseListModel) viewBrowse() string {
 	var s strings.Builder
 
-	s.WriteString(expenseListLogo + "\n\n")
+	s.WriteString(renderLogo(expenseListLogo) + "\n\n")
 	s.WriteString("Manage Expenses\n")
 	s.WriteString("─────────────────────────────\n\n")
 
@@ -500,7 +500,7 @@ func (m ExpenseListModel) viewBrowse() string {
 func (m ExpenseListModel) viewSearch() string {
 	var s strings.Builder
 
-	s.WriteString(expenseListLogo + "\n\n")
+	s.WriteString(renderLogo(expenseListLogo) + "\n\n")
 	s.WriteString("Search Expenses\n")
 	s.WriteString("─────────────────────────────\n\n")
 
@@ -516,7 +516,7 @@ func (m ExpenseListModel) viewSearch() string {
 func (m ExpenseListModel) viewEdit() string {
 	var s strings.Builder
 
-	s.WriteString(expenseListLogo + "\n\n")
+	s.WriteString(renderLogo(expenseListLogo) + "\n\n")
 	s.WriteString("Edit Expense\n")
 	s.WriteString("─────────────────────────────\n\n")
 
@@ -594,7 +594,7 @@ func (m ExpenseListModel) viewCategoryPicker() string {
 func (m ExpenseListModel) viewDeleteConfirm() string {
 	var s strings.Builder
 
-	s.WriteString(expenseListLogo + "\n\n")
+	s.WriteString(renderLogo(expenseListLogo) + "\n\n")
 	s.WriteString("Delete Expense?\n")
 	s.WriteString("─────────────────────────────\n\n")
 
