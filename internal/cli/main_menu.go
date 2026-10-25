@@ -9,19 +9,19 @@ import (
 var catFrames = []string{
 	` /\_/\  
 ( $.$ )  
-(  >💳 )  ExpenseCat`,
+(  >💳 )  %s`,
 
 	` /\_/\  
 ( -.- )  
-(  >💳 )  ExpenseCat`,
+(  >💳 )  %s`,
 
 	` /\_/\  
 ( $.$ )  
-(  >💰 )  ExpenseCat`,
+(  >💰 )  %s`,
 
 	` /\_/\  
 ( o.o )  
-(  >💳 )  ExpenseCat`,
+(  >💳 )  %s`,
 }
 
 type tickMsg time.Time
@@ -125,7 +125,7 @@ func (m MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m MainMenuModel) View() string {
-	s := catFrames[m.frameIndex] + "\n\n"
+	s := renderLogo(catFrames[m.frameIndex]) + "\n\n"
 	s += "Main Menu\n"
 	s += "─────────────────────────────\n"
 

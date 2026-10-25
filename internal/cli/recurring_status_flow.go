@@ -11,7 +11,7 @@ import (
 
 var recurringStatusLogo = ` /\_/\  
 ( $.$ )  
-(  >💳 )  ExpenseCat`
+(  >💳 )  %s`
 
 type RecurringStatusModel struct {
 	storage     storage.Storage
@@ -144,7 +144,7 @@ func (m *RecurringStatusModel) executeQuery() {
 func (m RecurringStatusModel) View() string {
 	var s strings.Builder
 
-	s.WriteString(recurringStatusLogo + "\n\n")
+	s.WriteString(renderLogo(recurringStatusLogo) + "\n\n")
 
 	if m.showResults {
 		monthName := time.Month(m.month).String()

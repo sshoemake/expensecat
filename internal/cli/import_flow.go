@@ -13,7 +13,7 @@ import (
 
 var importLogo = ` /\_/\  
 ( $.$ )  
-(  >💳 )  ExpenseCat`
+(  >💳 )  %s`
 
 type ImportModel struct {
 	storage         storage.Storage
@@ -163,7 +163,7 @@ func (m *ImportModel) executeImport() {
 func (m ImportModel) View() string {
 	var s strings.Builder
 
-	s.WriteString(importLogo + "\n\n")
+	s.WriteString(renderLogo(importLogo) + "\n\n")
 
 	if m.showResults {
 		s.WriteString("Import Results\n")

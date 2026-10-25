@@ -138,9 +138,12 @@ jobs:
 
           OUTPUT="$DIST/${BIN_NAME}"
 
+          COMMIT=$(git rev-parse --short HEAD)
+          BUILT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
           GOOS=$OS GOARCH=$ARCH \
           go build \
-            -ldflags="-X main.version=${VERSION}" \
+            -ldflags="-X main.appVersion=${VERSION} -X expensecat/internal/version.Version=${VERSION} -X main.commit=${COMMIT} -X expensecat/internal/version.Commit=${COMMIT} -X main.buildTime=${BUILT} -X expensecat/internal/version.BuildTime=${BUILT}" \
             -o "$OUTPUT" \
             .
 
